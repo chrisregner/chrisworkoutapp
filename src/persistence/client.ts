@@ -59,13 +59,15 @@ export function getDb(): Promise<Db> {
  * codepath used at runtime.
  */
 export async function runMigrations(client: PGlite): Promise<void> {
-  await client.exec(`
-    CREATE TABLE IF NOT EXISTS schema_version (
+  await client.exec(
+    `CREATE TABLE IF NOT EXISTS schema_version (
       version INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
-  `)
+    ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
+    ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ NOT NULL DEFAULT now();`,
+  )
 
   const migrations = loadMigrations()
   if (migrations.length === 0) return
