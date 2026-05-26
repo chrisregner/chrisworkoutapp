@@ -16,3 +16,7 @@
 
 
 ## Goal 3: Exercise Flow
+
+## Others
+- tags
+- import/export
