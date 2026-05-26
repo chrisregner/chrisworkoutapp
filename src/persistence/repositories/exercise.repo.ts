@@ -7,6 +7,24 @@ import { exerciseDefToRow, rowToExerciseDef } from './mappers'
 import { exerciseDefRowSchema } from './validators'
 import { findEquipmentDef } from './equipment.repo'
 
+export async function listExerciseDefs(db: Db): Promise<ExerciseDef[]> {
+  const rows = await db.select().from(exerciseDefs)
+  const parsed = rows.map(r => exerciseDefRowSchema.parse(r))
+
+  const equipmentIds = [...new Set(parsed.map(r => r.resistanceEquipmentId).filter(Boolean) as string[])]
+  const equipmentMap = new Map(
+    await Promise.all(
+      equipmentIds.map(async id => {
+        const eq_ = await findEquipmentDef(db, id)
+        if (!eq_) throw new EntityNotFoundError('equipment', id)
+        return [id, eq_] as const
+      }),
+    ),
+  )
+
+  return parsed.map(row => rowToExerciseDef(row, row.resistanceEquipmentId ? (equipmentMap.get(row.resistanceEquipmentId) ?? null) : null))
+}
+
 export async function findExerciseDef(db: Db, id: string): Promise<ExerciseDef | null> {
   const rows = await db.select().from(exerciseDefs).where(eq(exerciseDefs.id, id)).limit(1)
   if (rows.length === 0) return null
