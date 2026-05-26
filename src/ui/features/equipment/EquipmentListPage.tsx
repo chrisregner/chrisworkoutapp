@@ -58,6 +58,10 @@ function EquipmentCard({
       <Collapse in={expanded}>
         <Divider />
         <Stack gap="xs" p="md">
+          <Group gap="xs">
+            <Text size="xs" c="dimmed" fw={500}>Combinable:</Text>
+            <Text size="sm">{equipment.isCombinable ? 'Yes' : 'No'}</Text>
+          </Group>
           <Table withRowBorders={false} verticalSpacing={4}>
             <Table.Thead>
               <Table.Tr>

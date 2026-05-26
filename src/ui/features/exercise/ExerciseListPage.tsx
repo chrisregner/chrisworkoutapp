@@ -61,12 +61,33 @@ function ExerciseCard({
       <Collapse in={expanded}>
         <Divider />
         <Stack gap="xs" p="md">
-          <Text size="sm" c="dimmed">
-            Equipment: {exercise.equipment ? exercise.equipment.name : 'None'}
-          </Text>
-          {exercise.shouldCombineResistance && (
-            <Text size="sm" c="dimmed">Combines resistance across pieces</Text>
-          )}
+          <Stack gap={4}>
+            <Text size="xs" c="dimmed" fw={500}>Quantifier</Text>
+            <Text size="sm">
+              {formatRule(exercise.quantifierRule, exercise.quantifierType)}{' '}
+              <Text span c="dimmed" size="sm">({exercise.quantifierType})</Text>
+            </Text>
+          </Stack>
+          <Stack gap={4}>
+            <Text size="xs" c="dimmed" fw={500}>Equipment</Text>
+            {exercise.equipment ? (
+              <Stack gap={2}>
+                <Group gap="xs">
+                  <Text size="sm">{exercise.equipment.name}</Text>
+                  <Badge variant="light" size="xs">{exercise.equipment.unit}</Badge>
+                </Group>
+                <Text size="xs" c="dimmed">
+                  {exercise.equipment.pieces.length} piece{exercise.equipment.pieces.length !== 1 ? 's' : ''}
+                </Text>
+              </Stack>
+            ) : (
+              <Text size="sm" c="dimmed">None</Text>
+            )}
+          </Stack>
+          <Stack gap={4}>
+            <Text size="xs" c="dimmed" fw={500}>Combine resistance</Text>
+            <Text size="sm">{exercise.shouldCombineResistance ? 'Yes — adds piece resistances together' : 'No'}</Text>
+          </Stack>
           <Group gap="xs">
             <Button
               variant="subtle"
