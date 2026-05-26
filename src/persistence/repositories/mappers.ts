@@ -22,6 +22,7 @@ import {
   makeProgressionDef,
   makeQuantifierRule,
 } from '../../domain'
+import { unbrandNumber, unbrandNumberArray, unbrandUuid } from '../branding'
 import { progressionBodySchema, quantifierRuleSchema } from './validators'
 
 export function rowsToEquipmentDef(
@@ -52,17 +53,17 @@ export function equipmentDefToRow(def: EquipmentDef): {
 } {
   return {
     defRow: {
-      id: def.id,
+      id: unbrandUuid(def.id),
       name: def.name,
       description: def.description ?? null,
       isCombinable: def.isCombinable,
       unit: def.unit,
     },
     pieceRows: def.pieces.map((p, i) => ({
-      id: p.id,
-      equipmentDefId: def.id,
-      resistance: p.resistance,
-      quantity: p.quantity,
+      id: unbrandUuid(p.id),
+      equipmentDefId: unbrandUuid(def.id),
+      resistance: unbrandNumber(p.resistance),
+      quantity: unbrandNumber(p.quantity),
       position: p.position ?? i,
     })),
   }
@@ -86,18 +87,24 @@ export function rowToExerciseDef(row: ExerciseDefRow, equipment: EquipmentDef | 
 }
 
 export function exerciseDefToRow(def: ExerciseDef): NewExerciseDefRow {
+  const persistedRule: QuantifierRulePersisted =
+    def.quantifierRule.kind === 'min-max'
+      ? {
+          kind: 'min-max',
+          min: unbrandNumber(def.quantifierRule.min),
+          max: unbrandNumber(def.quantifierRule.max),
+        }
+      : {
+          kind: 'allowed-values',
+          values: unbrandNumberArray(def.quantifierRule.values),
+        }
   return {
-    id: def.id,
+    id: unbrandUuid(def.id),
     name: def.name,
     description: def.description ?? null,
     quantifierType: def.quantifierType,
-    quantifierRule: {
-      ...def.quantifierRule,
-      ...(def.quantifierRule.kind === 'min-max'
-        ? { min: def.quantifierRule.min as number, max: def.quantifierRule.max as number }
-        : { values: def.quantifierRule.values as readonly number[] as number[] }),
-    } as QuantifierRulePersisted,
-    resistanceEquipmentId: def.equipment?.id ?? null,
+    quantifierRule: persistedRule,
+    resistanceEquipmentId: def.equipment ? unbrandUuid(def.equipment.id) : null,
     shouldCombineResistance: def.shouldCombineResistance,
   }
 }
@@ -117,15 +124,15 @@ export function rowToProgressionDef(row: ProgressionDefRow, exercise: ExerciseDe
 
 function volumeSetToPersisted(vs: VolumeSet) {
   return {
-    sets: vs.sets as number,
-    quantifierValue: vs.quantifierValue as number,
+    sets: unbrandNumber(vs.sets),
+    quantifierValue: unbrandNumber(vs.quantifierValue),
     resistanceSource: vs.resistanceSource.map(rs => ({
       piece: {
-        pieceId: rs.piece.pieceId as string,
-        resistance: rs.piece.resistance as number,
-        quantity: rs.piece.quantity as number,
+        pieceId: unbrandUuid(rs.piece.pieceId),
+        resistance: unbrandNumber(rs.piece.resistance),
+        quantity: unbrandNumber(rs.piece.quantity),
       },
-      quantity: rs.quantity as number,
+      quantity: unbrandNumber(rs.quantity),
     })),
   }
 }
@@ -142,9 +149,9 @@ export function progressionDefToRow(def: ProgressionDef): NewProgressionDefRow {
           })),
         }
   return {
-    id: def.id,
+    id: unbrandUuid(def.id),
     name: def.name,
-    exerciseId: def.exercise.id,
+    exerciseId: unbrandUuid(def.exercise.id),
     bodyKind: def.body.kind,
     body,
   }

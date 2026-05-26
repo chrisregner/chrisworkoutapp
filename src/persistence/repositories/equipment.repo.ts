@@ -3,6 +3,7 @@ import type { Db } from '../client'
 import { equipmentDefs, equipmentPieces } from '../schema'
 import type { EquipmentDef } from '../../domain'
 import { equipmentDefToRow, rowsToEquipmentDef } from './mappers'
+import { equipmentDefRowSchema, equipmentPieceRowSchema } from './validators'
 
 export async function findEquipmentDef(db: Db, id: string): Promise<EquipmentDef | null> {
   const defRows = await db.select().from(equipmentDefs).where(eq(equipmentDefs.id, id)).limit(1)
@@ -11,19 +12,25 @@ export async function findEquipmentDef(db: Db, id: string): Promise<EquipmentDef
     .select()
     .from(equipmentPieces)
     .where(eq(equipmentPieces.equipmentDefId, id))
-  return rowsToEquipmentDef(defRows[0]!, pieceRows)
+  const defRow = equipmentDefRowSchema.parse(defRows[0]!)
+  const pieces = pieceRows.map(p => equipmentPieceRowSchema.parse(p))
+  return rowsToEquipmentDef(defRow, pieces)
 }
 
 export async function listEquipmentDefs(db: Db): Promise<EquipmentDef[]> {
   const defRows = await db.select().from(equipmentDefs)
   const pieceRows = await db.select().from(equipmentPieces)
-  const byDef = new Map<string, typeof pieceRows>()
-  for (const p of pieceRows) {
+  const parsedPieces = pieceRows.map(p => equipmentPieceRowSchema.parse(p))
+  const byDef = new Map<string, typeof parsedPieces>()
+  for (const p of parsedPieces) {
     const arr = byDef.get(p.equipmentDefId) ?? []
     arr.push(p)
     byDef.set(p.equipmentDefId, arr)
   }
-  return defRows.map(d => rowsToEquipmentDef(d, byDef.get(d.id) ?? []))
+  return defRows.map(d => {
+    const parsedDef = equipmentDefRowSchema.parse(d)
+    return rowsToEquipmentDef(parsedDef, byDef.get(parsedDef.id) ?? [])
+  })
 }
 
 export async function saveEquipmentDef(db: Db, def: EquipmentDef): Promise<void> {
