@@ -90,7 +90,7 @@ function EquipmentCard({
 }
 
 export function EquipmentListPage() {
-  const { items, loading, error, refresh } = useEquipmentList()
+  const { data: items = [], isLoading, error } = useEquipmentList()
   const [addModalOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false)
   const [editEquipment, setEditEquipment] = useState<EquipmentDef | null>(null)
 
@@ -112,10 +112,10 @@ export function EquipmentListPage() {
           </Button>
         </Group>
 
-        {loading && <Loader mx="auto" />}
+        {isLoading && <Loader mx="auto" />}
         {error && <Alert color="red">{error.message}</Alert>}
 
-        {!loading && !error && items.length === 0 && (
+        {!isLoading && !error && items.length === 0 && (
           <Text c="dimmed" ta="center" mt="xl">
             No equipment yet. Add your first piece.
           </Text>
@@ -126,13 +126,12 @@ export function EquipmentListPage() {
         ))}
       </Stack>
 
-      <AddEquipmentModal opened={addModalOpen} onClose={closeAdd} onSaved={refresh} />
+      <AddEquipmentModal opened={addModalOpen} onClose={closeAdd} />
 
       {editEquipment && (
         <AddEquipmentModal
           opened={!!editEquipment}
           onClose={handleEditClose}
-          onSaved={refresh}
           equipment={editEquipment}
         />
       )}

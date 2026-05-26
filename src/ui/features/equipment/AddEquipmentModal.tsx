@@ -16,8 +16,7 @@ import {
 import { useForm } from '@mantine/form'
 import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { useEffect } from 'react'
-import { useAddEquipment } from './useAddEquipment'
-import { useUpdateEquipment } from './useUpdateEquipment'
+import { useSaveEquipment } from './useSaveEquipment'
 import type { EquipmentDef, Unit } from '../../../domain'
 
 type PieceField = { id: string | undefined; resistance: string; quantity: string }
@@ -33,7 +32,6 @@ type FormValues = {
 type Props = {
   opened: boolean
   onClose: () => void
-  onSaved: () => void
   equipment?: EquipmentDef
 }
 
@@ -52,7 +50,7 @@ function buildInitialValues(equipment?: EquipmentDef): FormValues {
   return { name: '', description: '', isCombinable: false, unit: 'kg', pieces: [{ id: undefined, resistance: '', quantity: '1' }] }
 }
 
-export function AddEquipmentModal({ opened, onClose, onSaved, equipment }: Props) {
+export function AddEquipmentModal({ opened, onClose, equipment }: Props) {
   const isEdit = !!equipment
 
   const form = useForm<FormValues>({
@@ -82,17 +80,12 @@ export function AddEquipmentModal({ opened, onClose, onSaved, equipment }: Props
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened])
 
-  const onSuccess = () => {
-    form.reset()
-    onSaved()
-    onClose()
-  }
-
-  const { addEquipment, loading: addLoading, error: addError } = useAddEquipment(onSuccess)
-  const { updateEquipment, loading: updateLoading, error: updateError } = useUpdateEquipment(onSuccess)
-
-  const loading = addLoading || updateLoading
-  const error = addError ?? updateError
+  const { mutate, isPending: loading, error } = useSaveEquipment({
+    onSuccess: () => {
+      form.reset()
+      onClose()
+    },
+  })
 
   function handleSubmit(values: FormValues) {
     const input = {
@@ -108,9 +101,9 @@ export function AddEquipmentModal({ opened, onClose, onSaved, equipment }: Props
       })),
     }
     if (isEdit) {
-      void updateEquipment(equipment.id, input)
+      mutate({ mode: 'update', id: equipment.id, input })
     } else {
-      void addEquipment(input)
+      mutate({ mode: 'create', input })
     }
   }
 

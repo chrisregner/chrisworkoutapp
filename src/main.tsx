@@ -6,6 +6,7 @@ import '@mantine/core/styles.css'
 import { App } from './ui/App'
 import { DbProvider } from './ui/providers/DbProvider'
 import { AppServicesProvider } from './ui/providers/AppServicesProvider'
+import { QueryProvider } from './ui/providers/QueryProvider'
 
 const theme = createTheme({
   primaryColor: 'blue',
@@ -14,13 +15,15 @@ const theme = createTheme({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="auto">
-      <DbProvider>
-        <AppServicesProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </AppServicesProvider>
-      </DbProvider>
+      <QueryProvider>
+        <DbProvider>
+          <AppServicesProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </AppServicesProvider>
+        </DbProvider>
+      </QueryProvider>
     </MantineProvider>
   </React.StrictMode>,
 )
