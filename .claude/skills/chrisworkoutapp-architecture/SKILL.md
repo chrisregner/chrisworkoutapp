@@ -1,6 +1,6 @@
 ---
 name: chrisworkoutapp-architecture
-description: Layered architecture rules for the chrisworkoutapp repo (domain / persistence / app / ui / shared). Use whenever adding a feature, deciding where new code lives, scaffolding a new file under src/, creating repositories or services, wiring React components to data, writing migrations or Drizzle schema, or composing the README architecture section. Also use when the user asks "where should this go", "which layer", "should I add an interface here", or about Clean Architecture choices in this project. Pushy default — if you're touching src/ in this repo, consult this skill before placing code.
+description: Layered architecture rules for the chrisworkoutapp repo (domain / persistence / app / ui / shared). Use whenever adding a feature, deciding where new code lives, scaffolding a new file under src/, creating repositories or services, wiring React components to data, writing migrations or Drizzle schema, or composing the README architecture section. Also use when the user asks "where should this go", "which layer", "should I add an interface here", or about Clean Architecture choices in this project. Pushy default — if you're touching src/ in this repo, consult this skill before placing code. Companion to [[chrisworkoutapp-testing]].
 metadata:
   type: project-architecture
 ---
@@ -14,35 +14,40 @@ This repo follows a pragmatic four-layer architecture. The point isn't "Clean Ar
 ```
 src/
 ├── domain/         pure TS — no React, no Drizzle, no PGLite, no IO
-│   ├── primitives/ branded types (PositiveInt, PositiveNumber), smart constructors
+│   ├── primitives/ branded types (PositiveInt, PositiveNumber, Uuid),
+│   │               smart constructors, typed errors
 │   ├── equipment/  EquipmentDef, EquipmentPiece
 │   ├── exercise/   ExerciseDef
-│   ├── progression/ ProgressionDef, schemes, volume calc
-│   ├── session/    Session, LoggedSet, Deviation
-│   ├── rotation/   rolling rotation state machine
-│   └── errors.ts   typed domain errors (InvariantViolation, ConstraintViolation)
+│   ├── progression/ ProgressionDef, VolumeSet, volume/resistance calcs
+│   ├── session/    Session, LoggedSet, Deviation              (planned)
+│   └── rotation/   rolling rotation state machine             (planned)
 │
 ├── persistence/    Drizzle + PGLite — knows DB, doesn't know UI
-│   ├── schema.ts   pgTable defs
-│   ├── client.ts   PGLite + migration runner
-│   ├── migrations/ SQL files
-│   ├── rows.ts     *Row types inferred from schema
-│   └── repositories/ one file per aggregate (equipment.repo.ts, etc.)
+│   ├── schema.ts        pgTable defs
+│   ├── client.ts        PGLite + version-gated migration runner
+│   ├── migrations/      generated SQL files (drizzle-kit) + meta/
+│   ├── branding.ts      unbrand helpers for primitives at the boundary
+│   ├── testing.ts       makeTestDb() helper for tests
+│   └── repositories/    one file per aggregate (equipment.repo.ts, etc.)
+│                        + mappers.ts (row ↔ domain) + validators.ts
+│                        (shape-only Zod schemas)
 │
 ├── app/            application services — orchestrate domain + repos
-│   ├── workout-session.service.ts
-│   ├── progression.service.ts
-│   └── program-authoring.service.ts
+│   ├── programAuthoring.service.ts
+│   ├── workoutSession.service.ts                              (planned)
+│   └── progression.service.ts                                 (planned)
 │
 ├── ui/             React + Mantine — knows app services, not DB
 │   ├── components/ reusable presentational
-│   ├── features/   one folder per feature (workout/, equipment/, programs/)
-│   │   └── <feature>/ Page + child components + use<Feature>.ts hook
+│   ├── features/   one folder per feature (equipment/, workout/, programs/)
+│   │   └── <feature>/ Page + child components + use<Feature>.ts hook(s)
 │   ├── hooks/      cross-cutting
-│   ├── providers/  Context providers (DB client, AppServices)
+│   ├── providers/  Context providers (QueryProvider, DbProvider,
+│   │               AppServicesProvider)
 │   └── App.tsx
 │
-└── shared/         truly cross-cutting only — Result<T,E>, id gen. Not a utils dump.
+└── shared/         truly cross-cutting only — `newId`, branded id helpers.
+                    Not a utils dump.
 ```
 
 ## Layer rules — what goes where, and what doesn't
@@ -57,32 +62,34 @@ src/
 **Rule:** domain depends on nothing. Everything else depends on domain.
 
 ### persistence/
-**In:** Drizzle `pgTable` defs, PGLite client, migrations, repo classes per aggregate, `*Row` types, mapping fns (`equipmentRowToDomain`, `equipmentDomainToRows`), Zod re-validation on read.
+**In:** Drizzle `pgTable` defs, PGLite client + version-gated migration runner, `*Row` types, mapping fns (`rowsToEquipmentDef`, `equipmentDefToRow`), Zod schemas for *shape only*, branding helpers, repo functions per aggregate.
 
 **Out:** business logic, domain invariant *definitions* (re-parse to confirm — don't redefine), React.
 
-Repo shape:
+Repo shape — free functions taking `db`, not classes:
 ```typescript
-export class EquipmentRepository {
-  constructor(private db: PgliteDatabase) {}
+export async function findEquipmentDef(db: Db, id: string): Promise<EquipmentDef | null> {
+  const defRows = await db.select().from(equipmentDefs).where(eq(equipmentDefs.id, id)).limit(1)
+  if (defRows.length === 0) return null
+  const pieceRows = await db.select().from(equipmentPieces).where(eq(equipmentPieces.equipmentDefId, id))
+  const defRow = equipmentDefRowSchema.parse(defRows[0])
+  const parsedPieces = pieceRows.map(p => equipmentPieceRowSchema.parse(p))
+  return rowsToEquipmentDef(defRow, parsedPieces)
+}
 
-  async findById(id: EquipmentDefId): Promise<EquipmentDef | null> {
-    const defRow = await this.db.select().from(equipmentDefs).where(eq(equipmentDefs.id, id))
-    if (!defRow[0]) return null
-    const pieceRows = await this.db.select().from(equipmentPieces).where(eq(equipmentPieces.equipmentDefId, id))
-    return equipmentRowToDomain(defRow[0], pieceRows)
-  }
-
-  async save(equipment: EquipmentDef): Promise<void> {
-    const { defRow, pieceRows } = equipmentDomainToRows(equipment)
-    await this.db.transaction(async tx => {
-      await tx.insert(equipmentDefs).values(defRow).onConflictDoUpdate(/*...*/)
-      await tx.delete(equipmentPieces).where(eq(equipmentPieces.equipmentDefId, defRow.id))
-      await tx.insert(equipmentPieces).values(pieceRows)
-    })
-  }
+export async function saveEquipmentDef(db: Db, def: EquipmentDef): Promise<void> {
+  const { defRow, pieceRows } = equipmentDefToRow(def)
+  await db.transaction(async tx => {
+    await tx.insert(equipmentDefs).values(defRow).onConflictDoUpdate({ /* ... */ })
+    await tx.delete(equipmentPieces).where(eq(equipmentPieces.equipmentDefId, def.id))
+    if (pieceRows.length > 0) await tx.insert(equipmentPieces).values(pieceRows)
+  })
 }
 ```
+
+Every read `.parse()`s the raw row(s) with the row schema before passing to the mapper. JSONB and flat rows are treated symmetrically.
+
+**Migrations:** drizzle-kit generates SQL into `src/persistence/migrations/`. Run `pnpm db:generate` after editing `schema.ts`. The runner in `client.ts` loads files via `import.meta.glob('./migrations/*.sql', { query: '?raw', eager: true })`, sorts by filename prefix (`0000_*`, `0001_*`, ...), and applies pending versions in a transaction per migration against a `schema_version` table. Adding a CHECK constraint or index drizzle-kit doesn't derive? Edit the generated SQL file by hand and leave a comment marking the manual section.
 
 ### app/
 **In:** services orchestrating domain + repos, use-case fns (`startWorkoutSession`, `completeSet`, `prescribeNextSession`), transaction boundaries, "what happens when user does X".
@@ -104,7 +111,7 @@ async startNext(programId: ProgramId): Promise<Session> {
 **Concession:** a CRUD with no orchestration doesn't need a service. A hook can call the repo directly. Services exist to orchestrate — multiple repos, transactions, domain calls. If a service would forward one call, delete it.
 
 ### ui/
-**In:** React + Mantine components, TanStack Query if used, hooks wrapping services, routing, mobile-first responsive styles.
+**In:** React + Mantine components, TanStack Query for server/DB state (one `QueryClient` at the app root, mutations invalidate query keys), hooks wrapping services, routing, mobile-first responsive styles.
 
 **Out:** direct DB access (go through service or repo via hook), domain logic reimplementation (call domain fns), business-rule validation (use domain validators; UI does only field-level "is this a number").
 
@@ -117,7 +124,7 @@ export function useStartNextWorkout(programId: ProgramId) {
 ```
 
 ### shared/
-Only genuinely cross-cutting things. `Result<T,E>`, ID gen. Don't dump utils here because two layers happen to use them.
+Only genuinely cross-cutting things — `newId`, branded id helpers. Stays tiny. Don't dump utils here because two layers happen to use them. (`Result<T,E>` is explicitly not in scope — see "Patterns deliberately skipped" below and CLAUDE.md.)
 
 ## Wiring
 
@@ -133,6 +140,8 @@ Mention these in the README — saying *why* you skipped them is senior signal.
 - **MediatR-style command/query buses** — ceremony in TS.
 - **Hexagonal / Ports & Adapters vocabulary** — same idea you're already doing; the vocabulary screams blog-post-LARPing.
 - **DTOs as a third representation** — `*Row` and domain types are already two. Pass domain objects to React.
+- **`Result<T, E>` everywhere** — typed exception classes are the convention. Pick one error style and be consistent; mixing is worse than either alone.
+- **Mocking libraries in tests** — real in-memory PGLite (via `makeTestDb`) and real repos. If a test wants mocks, the design is leaking. See the `chrisworkoutapp-testing` skill.
 
 ## Rule of thumb when placing code
 

@@ -107,9 +107,19 @@ might or might not be called.
 ### Re-validation across the persistence boundary
 
 Reading from PGLite is treated like reading untrusted input. Repository read
-functions re-parse jsonb fields with Zod and re-run smart constructors. A bug
-that writes invalid data should not silently produce invalid domain objects on
-read.
+functions re-parse rows AND jsonb fields with Zod (shape only) and then re-run
+smart constructors (invariants). Zod and the smart constructor have separate
+jobs — "re-parse to confirm, don't redefine." Invariants live in exactly one
+place: the smart constructor.
+
+### Historical snapshots, not live references
+
+`EquipmentPieceSnapshot` inside `VolumeSet` is an immutable historical record.
+`pieceId` is lineage metadata; it is NOT validated against the live
+`equipment.pieces` set at read time. The snapshot's own `resistance` and
+`quantity` are the source of truth for that record. Editing equipment never
+invalidates historical progressions. "What did I actually lift" is the
+question the domain answers.
 
 ### Typed errors
 
@@ -132,19 +142,28 @@ These are skipped on purpose, not by accident:
   the vocabulary is avoided because the vocabulary tends to take over.
 - **Result<T, E> everywhere.** Exceptions with typed error classes are used
   instead. Pick one and be consistent; mixing is worse than either alone.
+- **Mocking libraries.** Tests use real in-memory PGLite (via `makeTestDb`)
+  and real repos. If a test wants mocks, the design is leaking — refactor or
+  expand scope to integration. See the `chrisworkoutapp-testing` skill.
 
 ## Technical stack
 
 - **React + Mantine** for UI. Mobile-first. Buttery touch interactions are
   table stakes — wake lock, haptics, optimistic UI, recovery from interruption.
+- **TanStack Query** for server/DB state in the UI. Queries dedupe and cache;
+  mutations invalidate query keys. Local `useState` is for UI-only state.
 - **PGLite** for persistence. Real Postgres in the browser. No server.
 - **Drizzle ORM** for schema and queries. SQL-first, lightweight, plays well
   with PGLite.
-- **Zod** for runtime validation at trust boundaries (DB reads, user input,
-  JSON imports). Not used for domain invariants — those live in smart
-  constructors.
-- **Vitest + fast-check** for testing. Property-based tests are how progression
-  invariants are proven, not example tests.
+- **drizzle-kit + version-gated migration runner.** SQL migrations live in
+  `src/persistence/migrations/`. The runner reads them via Vite's
+  `import.meta.glob`, sorts by filename prefix, and applies pending versions
+  in a transaction per migration against a `schema_version` table. Existing
+  IDB databases get bootstrapped to version 0 without re-running SQL.
+- **Zod** for *shape* validation at trust boundaries (DB reads, user input,
+  JSON imports). Shape only — invariants live in smart constructors.
+- **Vitest + fast-check** for testing. Real PGLite via `makeTestDb`. No
+  mocking library. See the `chrisworkoutapp-testing` skill.
 - **Docker** for the development environment.
 
 ## Working in this codebase
