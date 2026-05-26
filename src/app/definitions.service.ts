@@ -5,11 +5,15 @@ import {
   saveEquipmentDef,
   saveExerciseDef,
   saveProgressionDef,
+  deleteEquipmentDef,
+  deleteExerciseDef,
+  countExercisesUsingEquipment,
   listEquipmentDefs,
   listExerciseDefs,
 } from '../persistence/repositories'
 import {
   EntityNotFoundError,
+  ConflictError,
   makeEquipmentDef,
   makeExerciseDef,
   makeProgressionDef,
@@ -131,6 +135,22 @@ export class DefinitionsService {
     return def
   }
 
+  async deleteEquipment(id: string): Promise<void> {
+    const existing = await findEquipmentDef(this.db, id)
+    if (!existing) throw new EntityNotFoundError('equipment', id)
+    const usedBy = await countExercisesUsingEquipment(this.db, id)
+    if (usedBy > 0) {
+      throw new ConflictError('equipment', `used by ${usedBy} exercise${usedBy !== 1 ? 's' : ''}`)
+    }
+    await deleteEquipmentDef(this.db, id)
+  }
+
+  async deleteExercise(id: string): Promise<void> {
+    const existing = await findExerciseDef(this.db, id)
+    if (!existing) throw new EntityNotFoundError('exercise', id)
+    await deleteExerciseDef(this.db, id)
+  }
+
   async createProgression(input: {
     name: string
     exerciseId: string
@@ -138,6 +158,14 @@ export class DefinitionsService {
   }): Promise<ProgressionDef> {
     const exercise = await findExerciseDef(this.db, input.exerciseId)
     if (!exercise) throw new EntityNotFoundError('exercise', input.exerciseId)
+    if (exercise.equipment) {
+      const validPieceIds = new Set(exercise.equipment.pieces.map(p => p.id as string))
+      for (const entry of collectResistanceSources(input.body)) {
+        if (!validPieceIds.has(entry.piece.pieceId)) {
+          throw new EntityNotFoundError('equipmentPiece', entry.piece.pieceId)
+        }
+      }
+    }
     const def = makeProgressionDef({
       id: newId(),
       name: input.name,
@@ -147,4 +175,12 @@ export class DefinitionsService {
     await saveProgressionDef(this.db, def)
     return def
   }
+}
+
+function collectResistanceSources(body: ProgressionBodyInput) {
+  const sets =
+    body.kind === 'linear'
+      ? body.volumeSets
+      : body.volumeSets.flatMap(pair => [pair.heavy, pair.light])
+  return sets.flatMap(vs => vs.resistanceSource)
 }

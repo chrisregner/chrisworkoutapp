@@ -19,3 +19,14 @@ export class EntityNotFoundError extends Error {
     this.id = id
   }
 }
+
+export class ConflictError extends Error {
+  readonly entity: string
+  readonly reason: string
+  constructor(entity: string, reason: string) {
+    super(`${entity}: ${reason}`)
+    this.name = 'ConflictError'
+    this.entity = entity
+    this.reason = reason
+  }
+}

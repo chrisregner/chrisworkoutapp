@@ -8,15 +8,17 @@ import {
   Divider,
   Group,
   Loader,
+  Modal,
   Stack,
   Text,
   Title,
   UnstyledButton,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { IconChevronDown, IconChevronUp, IconEdit, IconPlus } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronUp, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useExerciseList } from './useExerciseList'
+import { useDeleteExercise } from './useDeleteExercise'
 import { SaveExerciseModal } from './SaveExerciseModal'
 import type { ExerciseDef, QuantifierRule } from '../../../domain'
 
@@ -29,9 +31,11 @@ function formatRule(rule: QuantifierRule, type: string): string {
 function ExerciseCard({
   exercise,
   onEdit,
+  onDelete,
 }: {
   exercise: ExerciseDef
   onEdit: (e: ExerciseDef) => void
+  onDelete: (e: ExerciseDef) => void
 }) {
   const [expanded, { toggle }] = useDisclosure(false)
 
@@ -63,18 +67,64 @@ function ExerciseCard({
           {exercise.shouldCombineResistance && (
             <Text size="sm" c="dimmed">Combines resistance across pieces</Text>
           )}
-          <Button
-            variant="subtle"
-            size="xs"
-            leftSection={<IconEdit size={14} />}
-            onClick={() => onEdit(exercise)}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            Edit
-          </Button>
+          <Group gap="xs">
+            <Button
+              variant="subtle"
+              size="xs"
+              leftSection={<IconEdit size={14} />}
+              onClick={() => onEdit(exercise)}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="subtle"
+              size="xs"
+              color="red"
+              leftSection={<IconTrash size={14} />}
+              onClick={() => onDelete(exercise)}
+            >
+              Delete
+            </Button>
+          </Group>
         </Stack>
       </Collapse>
     </Card>
+  )
+}
+
+function DeleteExerciseModal({
+  exercise,
+  onClose,
+}: {
+  exercise: ExerciseDef | null
+  onClose: () => void
+}) {
+  const { mutate, isPending, error } = useDeleteExercise({ onSuccess: onClose })
+
+  return (
+    <Modal
+      opened={!!exercise}
+      onClose={onClose}
+      title="Delete exercise"
+      size="sm"
+    >
+      {exercise && (
+        <Stack>
+          <Text>Delete <strong>{exercise.name}</strong>? All progressions for this exercise will also be deleted.</Text>
+          {error && <Alert color="red">{error.message}</Alert>}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose} disabled={isPending}>Cancel</Button>
+            <Button
+              color="red"
+              loading={isPending}
+              onClick={() => mutate(exercise.id)}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      )}
+    </Modal>
   )
 }
 
@@ -82,14 +132,7 @@ export function ExerciseListPage() {
   const { data: items = [], isLoading, error } = useExerciseList()
   const [addModalOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false)
   const [editExercise, setEditExercise] = useState<ExerciseDef | null>(null)
-
-  function handleEdit(exercise: ExerciseDef) {
-    setEditExercise(exercise)
-  }
-
-  function handleEditClose() {
-    setEditExercise(null)
-  }
+  const [deleteExercise, setDeleteExercise] = useState<ExerciseDef | null>(null)
 
   return (
     <Container size="sm" py="md">
@@ -111,7 +154,12 @@ export function ExerciseListPage() {
         )}
 
         {items.map(e => (
-          <ExerciseCard key={e.id} exercise={e} onEdit={handleEdit} />
+          <ExerciseCard
+            key={e.id}
+            exercise={e}
+            onEdit={setEditExercise}
+            onDelete={setDeleteExercise}
+          />
         ))}
       </Stack>
 
@@ -120,10 +168,15 @@ export function ExerciseListPage() {
       {editExercise && (
         <SaveExerciseModal
           opened={!!editExercise}
-          onClose={handleEditClose}
+          onClose={() => setEditExercise(null)}
           exercise={editExercise}
         />
       )}
+
+      <DeleteExerciseModal
+        exercise={deleteExercise}
+        onClose={() => setDeleteExercise(null)}
+      />
     </Container>
   )
 }

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, count } from 'drizzle-orm'
 import type { Db } from '../client'
 import { exerciseDefs } from '../schema'
 import type { ExerciseDef } from '../../domain'
@@ -37,6 +37,18 @@ export async function findExerciseDef(db: Db, id: string): Promise<ExerciseDef |
     }
   }
   return rowToExerciseDef(row, equipment)
+}
+
+export async function countExercisesUsingEquipment(db: Db, equipmentId: string): Promise<number> {
+  const rows = await db
+    .select({ n: count() })
+    .from(exerciseDefs)
+    .where(eq(exerciseDefs.resistanceEquipmentId, equipmentId))
+  return rows[0]?.n ?? 0
+}
+
+export async function deleteExerciseDef(db: Db, id: string): Promise<void> {
+  await db.delete(exerciseDefs).where(eq(exerciseDefs.id, id))
 }
 
 export async function saveExerciseDef(db: Db, def: ExerciseDef): Promise<void> {

@@ -33,6 +33,10 @@ export async function listEquipmentDefs(db: Db): Promise<EquipmentDef[]> {
   })
 }
 
+export async function deleteEquipmentDef(db: Db, id: string): Promise<void> {
+  await db.delete(equipmentDefs).where(eq(equipmentDefs.id, id))
+}
+
 export async function saveEquipmentDef(db: Db, def: EquipmentDef): Promise<void> {
   const { defRow, pieceRows } = equipmentDefToRow(def)
   await db.transaction(async tx => {

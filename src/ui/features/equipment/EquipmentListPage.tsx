@@ -8,6 +8,7 @@ import {
   Divider,
   Group,
   Loader,
+  Modal,
   Stack,
   Table,
   Text,
@@ -15,18 +16,21 @@ import {
   UnstyledButton,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { IconChevronDown, IconChevronUp, IconEdit, IconPlus } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronUp, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useEquipmentList } from './useEquipmentList'
+import { useDeleteEquipment } from './useDeleteEquipment'
 import { AddEquipmentModal } from './AddEquipmentModal'
 import type { EquipmentDef } from '../../../domain'
 
 function EquipmentCard({
   equipment,
   onEdit,
+  onDelete,
 }: {
   equipment: EquipmentDef
   onEdit: (e: EquipmentDef) => void
+  onDelete: (e: EquipmentDef) => void
 }) {
   const [expanded, { toggle }] = useDisclosure(false)
   const sorted = [...equipment.pieces].sort((a, b) => a.position - b.position)
@@ -74,18 +78,64 @@ function EquipmentCard({
               ))}
             </Table.Tbody>
           </Table>
-          <Button
-            variant="subtle"
-            size="xs"
-            leftSection={<IconEdit size={14} />}
-            onClick={() => onEdit(equipment)}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            Edit
-          </Button>
+          <Group gap="xs">
+            <Button
+              variant="subtle"
+              size="xs"
+              leftSection={<IconEdit size={14} />}
+              onClick={() => onEdit(equipment)}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="subtle"
+              size="xs"
+              color="red"
+              leftSection={<IconTrash size={14} />}
+              onClick={() => onDelete(equipment)}
+            >
+              Delete
+            </Button>
+          </Group>
         </Stack>
       </Collapse>
     </Card>
+  )
+}
+
+function DeleteEquipmentModal({
+  equipment,
+  onClose,
+}: {
+  equipment: EquipmentDef | null
+  onClose: () => void
+}) {
+  const { mutate, isPending, error } = useDeleteEquipment({ onSuccess: onClose })
+
+  return (
+    <Modal
+      opened={!!equipment}
+      onClose={onClose}
+      title="Delete equipment"
+      size="sm"
+    >
+      {equipment && (
+        <Stack>
+          <Text>Delete <strong>{equipment.name}</strong>? This cannot be undone.</Text>
+          {error && <Alert color="red">{error.message}</Alert>}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose} disabled={isPending}>Cancel</Button>
+            <Button
+              color="red"
+              loading={isPending}
+              onClick={() => mutate(equipment.id)}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      )}
+    </Modal>
   )
 }
 
@@ -93,14 +143,7 @@ export function EquipmentListPage() {
   const { data: items = [], isLoading, error } = useEquipmentList()
   const [addModalOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false)
   const [editEquipment, setEditEquipment] = useState<EquipmentDef | null>(null)
-
-  function handleEdit(equipment: EquipmentDef) {
-    setEditEquipment(equipment)
-  }
-
-  function handleEditClose() {
-    setEditEquipment(null)
-  }
+  const [deleteEquipment, setDeleteEquipment] = useState<EquipmentDef | null>(null)
 
   return (
     <Container size="sm" py="md">
@@ -122,7 +165,12 @@ export function EquipmentListPage() {
         )}
 
         {items.map(e => (
-          <EquipmentCard key={e.id} equipment={e} onEdit={handleEdit} />
+          <EquipmentCard
+            key={e.id}
+            equipment={e}
+            onEdit={setEditEquipment}
+            onDelete={setDeleteEquipment}
+          />
         ))}
       </Stack>
 
@@ -131,10 +179,15 @@ export function EquipmentListPage() {
       {editEquipment && (
         <AddEquipmentModal
           opened={!!editEquipment}
-          onClose={handleEditClose}
+          onClose={() => setEditEquipment(null)}
           equipment={editEquipment}
         />
       )}
+
+      <DeleteEquipmentModal
+        equipment={deleteEquipment}
+        onClose={() => setDeleteEquipment(null)}
+      />
     </Container>
   )
 }
