@@ -4,6 +4,7 @@ import {
   Button,
   Checkbox,
   Divider,
+  Fieldset,
   Group,
   Modal,
   NumberInput,
@@ -169,105 +170,117 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
 
           <TextInput label="Name" placeholder="e.g. Romanian Deadlift" {...form.getInputProps('name')} />
 
-          <TextInput label="Description" placeholder="Optional" {...form.getInputProps('description')} />
+          <TextInput label="Notes" placeholder="Optional" {...form.getInputProps('description')} />
 
-          <Stack gap={4}>
-            <Text size="sm" fw={500}>Quantifier type</Text>
-            <SegmentedControl
-              data={[
-                { label: 'Reps', value: 'reps' },
-                { label: 'Seconds', value: 'seconds' },
-              ]}
-              {...form.getInputProps('quantifierType')}
-            />
-          </Stack>
+          <Fieldset legend="Counting">
+            <Stack gap="sm">
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>Track by</Text>
+                <SegmentedControl
+                  data={[
+                    { label: 'Reps', value: 'reps' },
+                    { label: 'Seconds', value: 'seconds' },
+                  ]}
+                  {...form.getInputProps('quantifierType')}
+                />
+              </Stack>
 
-          <Stack gap={4}>
-            <Text size="sm" fw={500}>Rep/time rule</Text>
-            <SegmentedControl
-              data={[
-                { label: 'Range', value: 'min-max' },
-                { label: 'Fixed values', value: 'allowed-values' },
-              ]}
-              {...form.getInputProps('quantifierRuleKind')}
-            />
-          </Stack>
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>Target type</Text>
+                <SegmentedControl
+                  data={[
+                    { label: 'Range', value: 'min-max' },
+                    { label: 'Specific values', value: 'allowed-values' },
+                  ]}
+                  {...form.getInputProps('quantifierRuleKind')}
+                />
+              </Stack>
 
-          {values.quantifierRuleKind === 'min-max' && (
-            <Group grow gap="xs">
-              <NumberInput
-                label="Min"
-                placeholder="1"
-                min={1}
-                step={1}
-                allowDecimal={false}
-                {...form.getInputProps('minMaxMin')}
-              />
-              <NumberInput
-                label="Max"
-                placeholder="10"
-                min={1}
-                step={1}
-                allowDecimal={false}
-                {...form.getInputProps('minMaxMax')}
-              />
-            </Group>
-          )}
-
-          {values.quantifierRuleKind === 'allowed-values' && (
-            <Stack gap="xs">
-              <Divider label="Allowed values" labelPosition="left" />
-              {values.allowedValues.map((_: string, i: number) => (
-                <Group key={i} align="flex-end" gap="xs" wrap="nowrap">
+              {values.quantifierRuleKind === 'min-max' && (
+                <Group grow gap="xs">
                   <NumberInput
-                    label={i === 0 ? `${values.quantifierType === 'reps' ? 'Reps' : 'Seconds'}` : undefined}
-                    placeholder="5"
+                    label="Minimum"
+                    placeholder="1"
                     min={1}
                     step={1}
                     allowDecimal={false}
-                    style={{ flex: 1 }}
-                    {...form.getInputProps(`allowedValues.${i}`)}
+                    {...form.getInputProps('minMaxMin')}
                   />
-                  <ActionIcon
-                    variant="subtle"
-                    color="red"
-                    disabled={values.allowedValues.length === 1}
-                    onClick={() => form.removeListItem('allowedValues', i)}
-                    mb={4}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
+                  <NumberInput
+                    label="Maximum"
+                    placeholder="10"
+                    min={1}
+                    step={1}
+                    allowDecimal={false}
+                    {...form.getInputProps('minMaxMax')}
+                  />
                 </Group>
-              ))}
-              <Button
-                variant="subtle"
-                size="xs"
-                leftSection={<IconPlus size={14} />}
-                onClick={() => form.insertListItem('allowedValues', '')}
-                style={{ alignSelf: 'flex-start' }}
-              >
-                Add value
-              </Button>
+              )}
+
+              {values.quantifierRuleKind === 'allowed-values' && (
+                <Stack gap="xs">
+                  <Divider label="Specific targets" labelPosition="left" />
+                  {values.allowedValues.map((_: string, i: number) => (
+                    <Group key={i} align="flex-end" gap="xs" wrap="nowrap">
+                      <NumberInput
+                        label={i === 0 ? `${values.quantifierType === 'reps' ? 'Reps' : 'Seconds'}` : undefined}
+                        placeholder="5"
+                        min={1}
+                        step={1}
+                        allowDecimal={false}
+                        style={{ flex: 1 }}
+                        {...form.getInputProps(`allowedValues.${i}`)}
+                      />
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        disabled={values.allowedValues.length === 1}
+                        onClick={() => form.removeListItem('allowedValues', i)}
+                        mb={4}
+                      >
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    </Group>
+                  ))}
+                  <Button
+                    variant="subtle"
+                    size="xs"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={() => form.insertListItem('allowedValues', '')}
+                    style={{ alignSelf: 'flex-start' }}
+                  >
+                    Add option
+                  </Button>
+                </Stack>
+              )}
             </Stack>
-          )}
+          </Fieldset>
 
-          <Select
-            label="Equipment"
-            placeholder="None"
-            data={equipmentSelectData}
-            value={values.equipmentId}
-            onChange={handleEquipmentChange}
-            clearable
-          />
+          <Fieldset legend="Equipment">
+            <Stack gap="sm">
+              <Select
+                label="Equipment"
+                placeholder="None"
+                data={equipmentSelectData}
+                value={values.equipmentId}
+                onChange={handleEquipmentChange}
+                clearable
+              />
 
-          {selectedEquipment && (
-            <Checkbox
-              label="Combine resistance across pieces"
-              disabled={!selectedEquipment.isCombinable}
-              description={!selectedEquipment.isCombinable ? 'Equipment is not combinable' : undefined}
-              {...form.getInputProps('shouldCombineResistance', { type: 'checkbox' })}
-            />
-          )}
+              {selectedEquipment && (
+                <Checkbox
+                  label="Add weights together"
+                  disabled={!selectedEquipment.isCombinable}
+                  description={
+                    !selectedEquipment.isCombinable
+                      ? 'Not available — this equipment isn\'t stackable'
+                      : 'Total load = sum of all selected pieces'
+                  }
+                  {...form.getInputProps('shouldCombineResistance', { type: 'checkbox' })}
+                />
+              )}
+            </Stack>
+          </Fieldset>
 
           <Button type="submit" loading={loading} mt="sm">
             Save
