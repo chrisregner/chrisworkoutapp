@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useProgramAuthoring } from '../../providers/AppServicesProvider'
+import { useDefinitions } from '../../providers/AppServicesProvider'
 import type { Unit } from '../../../domain'
 
 type PieceInput = { id?: string; resistance: number; quantity: number; position?: number }
@@ -17,7 +17,7 @@ type SaveVars =
   | { mode: 'update'; id: string; input: SaveEquipmentInput }
 
 export function useSaveEquipment(options?: { onSuccess?: () => void }) {
-  const service = useProgramAuthoring()
+  const service = useDefinitions()
   const queryClient = useQueryClient()
 
   return useMutation({

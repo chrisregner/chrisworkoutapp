@@ -1,1 +1,1 @@
-export * from './programAuthoring.service'
+export * from './definitions.service'

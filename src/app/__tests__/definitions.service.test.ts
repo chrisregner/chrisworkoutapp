@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { makeTestDb } from '../../persistence/testing'
-import { ProgramAuthoringService } from '../programAuthoring.service'
+import { DefinitionsService } from '../definitions.service'
 import { findEquipmentDef } from '../../persistence/repositories'
 import {
   EntityNotFoundError,
@@ -10,10 +10,10 @@ import {
 import { newId } from '../../shared'
 
 function freshService(db: Awaited<ReturnType<typeof makeTestDb>>) {
-  return new ProgramAuthoringService(db)
+  return new DefinitionsService(db)
 }
 
-describe('ProgramAuthoringService', () => {
+describe('DefinitionsService', () => {
   it('createEquipment persists and the result is findable', async () => {
     const db = await makeTestDb()
     const service = freshService(db)

@@ -6,6 +6,7 @@ import {
   saveExerciseDef,
   saveProgressionDef,
   listEquipmentDefs,
+  listExerciseDefs,
 } from '../persistence/repositories'
 import {
   EntityNotFoundError,
@@ -21,7 +22,7 @@ import {
 } from '../domain'
 import { newId } from '../shared'
 
-export class ProgramAuthoringService {
+export class DefinitionsService {
   constructor(private readonly db: Db) {}
 
   listEquipment(): Promise<EquipmentDef[]> {
@@ -95,6 +96,38 @@ export class ProgramAuthoringService {
       pieces: input.pieces.map(p => ({ ...p, id: p.id ?? newId() })),
     })
     await saveEquipmentDef(this.db, def)
+    return def
+  }
+
+  listExercises(): Promise<ExerciseDef[]> {
+    return listExerciseDefs(this.db)
+  }
+
+  async updateExercise(
+    id: string,
+    input: {
+      name: string
+      description?: string
+      quantifierType: 'reps' | 'seconds'
+      quantifierRule: QuantifierRule
+      equipmentId: string | null
+      shouldCombineResistance?: boolean
+    },
+  ): Promise<ExerciseDef> {
+    const existing = await findExerciseDef(this.db, id)
+    if (!existing) throw new EntityNotFoundError('exercise', id)
+    const equipment = input.equipmentId ? await findEquipmentDef(this.db, input.equipmentId) : null
+    if (input.equipmentId && !equipment) throw new EntityNotFoundError('equipment', input.equipmentId)
+    const def = makeExerciseDef({
+      id,
+      name: input.name,
+      description: input.description,
+      quantifierType: input.quantifierType,
+      quantifierRule: input.quantifierRule,
+      equipment,
+      shouldCombineResistance: input.shouldCombineResistance,
+    })
+    await saveExerciseDef(this.db, def)
     return def
   }
 

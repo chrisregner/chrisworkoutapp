@@ -33,9 +33,11 @@ src/
 │                        (shape-only Zod schemas)
 │
 ├── app/            application services — orchestrate domain + repos
-│   ├── programAuthoring.service.ts
-│   ├── workoutSession.service.ts                              (planned)
-│   └── progression.service.ts                                 (planned)
+│   ├── definitions.service.ts        catalog: equipment/exercise/progression defs
+│   ├── programAuthoring.service.ts   program defs: days, activities          (planned)
+│   ├── workout.service.ts            runtime session + rolling rotation      (planned)
+│   ├── workoutLog.service.ts         history reads, per-exercise volume      (planned)
+│   └── dataPort.service.ts           json import/export                      (planned)
 │
 ├── ui/             React + Mantine — knows app services, not DB
 │   ├── components/ reusable presentational

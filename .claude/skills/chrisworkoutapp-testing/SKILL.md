@@ -32,7 +32,7 @@ Integration tests against real in-memory PGLite. **Never** mock the database. Re
 
 ### app/
 
-Service tests with real in-memory PGLite + real repos. Wire `new ProgramAuthoringService(db)` and exercise public methods end-to-end. No mocks of repos.
+Service tests with real in-memory PGLite + real repos. Wire `new DefinitionsService(db)` and exercise public methods end-to-end. No mocks of repos.
 
 - **Path:** `src/app/__tests__/<service>.service.test.ts`
 - **Setup:** same `makeTestDb()` helper
