@@ -1,0 +1,168 @@
+import { InvariantViolationError, type PositiveInt, type PositiveNumber, type Uuid, positiveInt, positiveNumber, uuidOf } from '../primitives'
+import type { ExerciseDef } from '../exercise'
+import { ruleAccepts } from '../exercise'
+
+export type EquipmentPieceSnapshot = {
+  readonly pieceId: Uuid
+  readonly resistance: PositiveNumber
+  readonly quantity: PositiveInt
+}
+
+export type ResistanceSourceEntry = {
+  readonly piece: EquipmentPieceSnapshot
+  readonly quantity: PositiveInt
+}
+
+export type VolumeSet = {
+  readonly sets: PositiveInt
+  readonly quantifierValue: PositiveInt
+  readonly resistanceSource: readonly ResistanceSourceEntry[]
+}
+
+export type ProgressionBody =
+  | { kind: 'linear'; volumeSets: readonly VolumeSet[] }
+  | {
+      kind: 'heavyLight'
+      volumeSets: readonly { heavy: VolumeSet; light: VolumeSet }[]
+    }
+
+export type ProgressionDef = {
+  readonly id: Uuid
+  readonly name: string
+  readonly exercise: ExerciseDef
+  readonly body: ProgressionBody
+}
+
+export function totalResistance(vs: VolumeSet): number {
+  return vs.resistanceSource.reduce((acc, r) => acc + r.piece.resistance * r.quantity, 0)
+}
+
+/** Sets * quantifierValue * totalResistance (or 1 if bodyweight). */
+export function volumeOf(vs: VolumeSet): number {
+  return vs.sets * vs.quantifierValue * (totalResistance(vs) || 1)
+}
+
+export type VolumeSetInput = {
+  sets: number
+  quantifierValue: number
+  resistanceSource: { piece: { pieceId: string; resistance: number; quantity: number }; quantity: number }[]
+}
+
+export type ProgressionBodyInput =
+  | { kind: 'linear'; volumeSets: VolumeSetInput[] }
+  | { kind: 'heavyLight'; volumeSets: { heavy: VolumeSetInput; light: VolumeSetInput }[] }
+
+export type ProgressionDefInput = {
+  id: string
+  name: string
+  exercise: ExerciseDef
+  body: ProgressionBodyInput
+}
+
+function makeVolumeSet(input: VolumeSetInput, exercise: ExerciseDef, path: string): VolumeSet {
+  const sets = positiveInt(input.sets)
+  const quantifierValue = positiveInt(input.quantifierValue)
+  if (!ruleAccepts(exercise.quantifierRule, quantifierValue)) {
+    throw new InvariantViolationError(
+      `${path}.quantifierValue`,
+      `${quantifierValue} violates exercise rule`,
+    )
+  }
+
+  if (!exercise.equipment) {
+    if (input.resistanceSource.length > 0) {
+      throw new InvariantViolationError(
+        `${path}.resistanceSource`,
+        'must be empty for bodyweight exercise',
+      )
+    }
+    return { sets, quantifierValue, resistanceSource: [] }
+  }
+
+  if (input.resistanceSource.length === 0) {
+    throw new InvariantViolationError(
+      `${path}.resistanceSource`,
+      'required for resistance exercise',
+    )
+  }
+  if (input.resistanceSource.length > 1 && !exercise.equipment.isCombinable) {
+    throw new InvariantViolationError(
+      `${path}.resistanceSource`,
+      'multiple entries require combinable equipment',
+    )
+  }
+
+  const resistanceSource = input.resistanceSource.map((rs, i) => {
+    const owned = exercise.equipment!.pieces.find(p => p.id === rs.piece.pieceId)
+    if (!owned) {
+      throw new InvariantViolationError(
+        `${path}.resistanceSource[${i}]`,
+        `pieceId ${rs.piece.pieceId} not in exercise equipment`,
+      )
+    }
+    const qty = positiveInt(rs.quantity)
+    if (qty > owned.quantity) {
+      throw new InvariantViolationError(
+        `${path}.resistanceSource[${i}].quantity`,
+        `${qty} exceeds owned ${owned.quantity}`,
+      )
+    }
+    return {
+      piece: {
+        pieceId: owned.id,
+        resistance: positiveNumber(rs.piece.resistance),
+        quantity: positiveInt(rs.piece.quantity),
+      },
+      quantity: qty,
+    }
+  })
+
+  return { sets, quantifierValue, resistanceSource }
+}
+
+export function makeProgressionDef(input: ProgressionDefInput): ProgressionDef {
+  if (!input.name.trim()) {
+    throw new InvariantViolationError('progressionDef.name', 'name must be non-empty')
+  }
+  if (input.body.volumeSets.length === 0) {
+    throw new InvariantViolationError('progressionDef.body.volumeSets', 'must be non-empty')
+  }
+
+  let body: ProgressionBody
+  if (input.body.kind === 'linear') {
+    body = {
+      kind: 'linear',
+      volumeSets: input.body.volumeSets.map((vs, i) =>
+        makeVolumeSet(vs, input.exercise, `volumeSets[${i}]`),
+      ),
+    }
+  } else {
+    body = {
+      kind: 'heavyLight',
+      volumeSets: input.body.volumeSets.map((pair, i) => {
+        const heavy = makeVolumeSet(pair.heavy, input.exercise, `volumeSets[${i}].heavy`)
+        const light = makeVolumeSet(pair.light, input.exercise, `volumeSets[${i}].light`)
+        if (totalResistance(heavy) <= totalResistance(light)) {
+          throw new InvariantViolationError(
+            `volumeSets[${i}]`,
+            'heavy.resistance must exceed light.resistance',
+          )
+        }
+        if (volumeOf(light) <= volumeOf(heavy)) {
+          throw new InvariantViolationError(
+            `volumeSets[${i}]`,
+            'light.volume must exceed heavy.volume',
+          )
+        }
+        return { heavy, light }
+      }),
+    }
+  }
+
+  return {
+    id: uuidOf(input.id),
+    name: input.name,
+    exercise: input.exercise,
+    body,
+  }
+}
