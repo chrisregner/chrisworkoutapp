@@ -27,7 +27,7 @@ export const quantifierRuleSchema = z.discriminatedUnion('kind', [
 export const pieceSnapshotSchema = z.object({
   pieceId: z.uuid(),
   resistance: z.number(),
-  quantity: z.number(),
+  totalQuantity: z.number(),
 })
 
 export const volumeSetSchema = z.object({
@@ -36,7 +36,7 @@ export const volumeSetSchema = z.object({
   resistanceSource: z.array(
     z.object({
       piece: pieceSnapshotSchema,
-      quantity: z.number(),
+      quantityUsed: z.number(),
     }),
   ),
 })

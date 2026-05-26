@@ -79,9 +79,9 @@ describe('validators (shape-only)', () => {
             piece: {
               pieceId: '00000000-0000-4000-8000-000000000001',
               resistance,
-              quantity: 1,
+              totalQuantity: 1,
             },
-            quantity: 1,
+            quantityUsed: 1,
           },
         ],
       })

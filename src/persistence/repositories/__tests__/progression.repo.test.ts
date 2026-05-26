@@ -42,7 +42,7 @@ function buildExercise(eq: EquipmentDef): ExerciseDef {
 
 function snap(eq: EquipmentDef, idx: number) {
   const p = eq.pieces[idx]!
-  return { pieceId: p.id as string, resistance: p.resistance as number, quantity: p.quantity as number }
+  return { pieceId: p.id as string, resistance: p.resistance as number, totalQuantity: p.quantity as number }
 }
 
 async function persistGraph(db: Awaited<ReturnType<typeof makeTestDb>>) {
@@ -68,7 +68,7 @@ describe('progression.repo', () => {
           {
             sets: 3,
             quantifierValue: 5,
-            resistanceSource: [{ piece: snap(equipment, 2), quantity: 2 }],
+            resistanceSource: [{ piece: snap(equipment, 2), quantityUsed: 2 }],
           },
         ],
       },
@@ -106,12 +106,12 @@ describe('progression.repo', () => {
             heavy: {
               sets: 3,
               quantifierValue: 3,
-              resistanceSource: [{ piece: snap(equipment, 2), quantity: 4 }],
+              resistanceSource: [{ piece: snap(equipment, 2), quantityUsed: 4 }],
             },
             light: {
               sets: 5,
               quantifierValue: 8,
-              resistanceSource: [{ piece: snap(equipment, 2), quantity: 2 }],
+              resistanceSource: [{ piece: snap(equipment, 2), quantityUsed: 2 }],
             },
           },
         ],
@@ -149,7 +149,7 @@ describe('progression.repo', () => {
           {
             sets: 1,
             quantifierValue: 5,
-            resistanceSource: [{ piece: snap(equipment, 0), quantity: 1 }],
+            resistanceSource: [{ piece: snap(equipment, 0), quantityUsed: 1 }],
           },
         ],
       },

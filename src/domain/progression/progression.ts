@@ -5,12 +5,12 @@ import { ruleAccepts } from '../exercise'
 export type EquipmentPieceSnapshot = {
   readonly pieceId: Uuid
   readonly resistance: PositiveNumber
-  readonly quantity: PositiveInt
+  readonly totalQuantity: PositiveInt
 }
 
 export type ResistanceSourceEntry = {
   readonly piece: EquipmentPieceSnapshot
-  readonly quantity: PositiveInt
+  readonly quantityUsed: PositiveInt
 }
 
 export type VolumeSet = {
@@ -34,7 +34,7 @@ export type ProgressionDef = {
 }
 
 export function totalResistance(vs: VolumeSet): number {
-  return vs.resistanceSource.reduce((acc, r) => acc + r.piece.resistance * r.quantity, 0)
+  return vs.resistanceSource.reduce((acc, r) => acc + r.piece.resistance * r.quantityUsed, 0)
 }
 
 /** Sets * quantifierValue * totalResistance (or 1 if bodyweight). */
@@ -45,7 +45,7 @@ export function volumeOf(vs: VolumeSet): number {
 export type VolumeSetInput = {
   sets: number
   quantifierValue: number
-  resistanceSource: { piece: { pieceId: string; resistance: number; quantity: number }; quantity: number }[]
+  resistanceSource: { piece: { pieceId: string; resistance: number; totalQuantity: number }; quantityUsed: number }[]
 }
 
 export type ProgressionBodyInput =
@@ -92,19 +92,28 @@ function makeVolumeSet(input: VolumeSetInput, exercise: ExerciseDef, path: strin
     )
   }
 
-  // Historical snapshot semantics: resistance/quantity on the snapshot are the
-  // immutable record of what was actually lifted. pieceId is retained as lineage
-  // metadata (the piece this came from) but is NOT validated against the current
-  // exercise.equipment.pieces — editing or deleting the source piece does not
-  // invalidate prior progressions/sessions. The snapshot stands on its own.
-  const resistanceSource = input.resistanceSource.map(rs => ({
-    piece: {
-      pieceId: uuidOf(rs.piece.pieceId),
-      resistance: positiveNumber(rs.piece.resistance),
-      quantity: positiveInt(rs.piece.quantity),
-    },
-    quantity: positiveInt(rs.quantity),
-  }))
+  // Historical snapshot semantics: the snapshot is an immutable record of what
+  // was lifted. pieceId is lineage metadata; it is NOT re-validated against
+  // exercise.equipment.pieces on read — editing/deleting a source piece does not
+  // invalidate existing progressions. The snapshot stands on its own.
+  const resistanceSource = input.resistanceSource.map((rs, rsIdx) => {
+    const totalQuantity = positiveInt(rs.piece.totalQuantity)
+    const quantityUsed = positiveInt(rs.quantityUsed)
+    if (quantityUsed > totalQuantity) {
+      throw new InvariantViolationError(
+        `${path}.resistanceSource[${rsIdx}].quantityUsed`,
+        `${quantityUsed} exceeds available totalQuantity ${totalQuantity}`,
+      )
+    }
+    return {
+      piece: {
+        pieceId: uuidOf(rs.piece.pieceId),
+        resistance: positiveNumber(rs.piece.resistance),
+        totalQuantity,
+      },
+      quantityUsed,
+    }
+  })
 
   return { sets, quantifierValue, resistanceSource }
 }

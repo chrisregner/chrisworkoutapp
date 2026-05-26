@@ -56,18 +56,18 @@ export const exerciseDefs = pgTable('exercise_defs', {
 
 /**
  * Snapshot of an equipment piece embedded inside a VolumeSet body.
- * Carries pieceId for identity; resistance/quantity captured for historical value.
+ * Carries pieceId for identity; resistance/totalQuantity captured for historical value.
  */
 export type EquipmentPieceSnapshotPersisted = {
   pieceId: string
   resistance: number
-  quantity: number
+  totalQuantity: number
 }
 
 export type VolumeSetPersisted = {
   sets: number
   quantifierValue: number
-  resistanceSource: { piece: EquipmentPieceSnapshotPersisted; quantity: number }[]
+  resistanceSource: { piece: EquipmentPieceSnapshotPersisted; quantityUsed: number }[]
 }
 
 export type ProgressionBodyPersisted =

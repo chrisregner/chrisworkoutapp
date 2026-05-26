@@ -50,7 +50,7 @@ describe('runMigrations', () => {
     const versions = await db.query<{ version: number }>(
       'SELECT version FROM schema_version ORDER BY version',
     )
-    expect(versions.rows).toEqual([{ version: 0 }])
+    expect(versions.rows).toEqual([{ version: 0 }, { version: 1 }])
   })
 
   it('is idempotent', async () => {
@@ -61,7 +61,7 @@ describe('runMigrations', () => {
     const count = await db.query<{ n: number }>(
       'SELECT count(*)::int AS n FROM schema_version',
     )
-    expect(count.rows[0].n).toBe(1)
+    expect(count.rows[0].n).toBe(2)
   })
 
   it('enforces the unit CHECK', async () => {
@@ -81,6 +81,6 @@ describe('runMigrations', () => {
     const ver = await db.query<{ version: number }>(
       'SELECT version FROM schema_version ORDER BY version',
     )
-    expect(ver.rows).toEqual([{ version: 0 }])
+    expect(ver.rows).toEqual([{ version: 0 }, { version: 1 }])
   })
 })

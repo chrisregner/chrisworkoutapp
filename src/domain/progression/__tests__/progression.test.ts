@@ -36,7 +36,7 @@ function buildExercise(eq: EquipmentDef | null): ExerciseDef {
 
 function snap(eq: EquipmentDef, idx: number) {
   const p = eq.pieces[idx]!
-  return { pieceId: p.id as string, resistance: p.resistance as number, quantity: p.quantity as number }
+  return { pieceId: p.id as string, resistance: p.resistance as number, totalQuantity: p.quantity as number }
 }
 
 describe('makeProgressionDef linear', () => {
@@ -53,7 +53,7 @@ describe('makeProgressionDef linear', () => {
           {
             sets: 3,
             quantifierValue: 5,
-            resistanceSource: [{ piece: snap(eq, 2), quantity: 1 }],
+            resistanceSource: [{ piece: snap(eq, 2), quantityUsed: 1 }],
           },
         ],
       },
@@ -78,7 +78,7 @@ describe('makeProgressionDef linear', () => {
         exercise: ex,
         body: {
           kind: 'linear',
-          volumeSets: [{ sets: 3, quantifierValue: 99, resistanceSource: [{ piece: snap(eq, 0), quantity: 1 }] }],
+          volumeSets: [{ sets: 3, quantifierValue: 99, resistanceSource: [{ piece: snap(eq, 0), quantityUsed: 1 }] }],
         },
       }),
     ).toThrow(/violates exercise rule/)
@@ -94,7 +94,7 @@ describe('makeProgressionDef linear', () => {
         exercise: ex,
         body: {
           kind: 'linear',
-          volumeSets: [{ sets: 1, quantifierValue: 5, resistanceSource: [{ piece: snap(eq, 0), quantity: 1 }] }],
+          volumeSets: [{ sets: 1, quantifierValue: 5, resistanceSource: [{ piece: snap(eq, 0), quantityUsed: 1 }] }],
         },
       }),
     ).toThrow(/bodyweight/)
@@ -124,8 +124,8 @@ describe('makeProgressionDef linear', () => {
               sets: 1,
               quantifierValue: 5,
               resistanceSource: [
-                { piece: snap(eq, 0), quantity: 1 },
-                { piece: snap(eq, 1), quantity: 1 },
+                { piece: snap(eq, 0), quantityUsed: 1 },
+                { piece: snap(eq, 1), quantityUsed: 1 },
               ],
             },
           ],
@@ -134,23 +134,21 @@ describe('makeProgressionDef linear', () => {
     ).toThrow(/combinable/)
   })
 
-  it('accepts quantity independent of currently-owned piece quantity (historical snapshot)', () => {
+  it('rejects quantityUsed exceeding totalQuantity', () => {
     const eq = buildEquipment()
     const ex = buildExercise(eq)
-    // qty 99 well exceeds the equipment piece's current owned quantity (4).
-    // The snapshot is a historical record — owner's current owned quantity is
-    // irrelevant to a record of what was already lifted.
-    const prog = makeProgressionDef({
-      id: u(3),
-      name: 'P',
-      exercise: ex,
-      body: {
-        kind: 'linear',
-        volumeSets: [{ sets: 1, quantifierValue: 5, resistanceSource: [{ piece: snap(eq, 0), quantity: 99 }] }],
-      },
-    })
-    const vs = (prog.body as { kind: 'linear'; volumeSets: any[] }).volumeSets[0]
-    expect(vs.resistanceSource[0].quantity).toBe(99)
+    // pieces[0] has totalQuantity=4; using 99 exceeds what's available.
+    expect(() =>
+      makeProgressionDef({
+        id: u(3),
+        name: 'P',
+        exercise: ex,
+        body: {
+          kind: 'linear',
+          volumeSets: [{ sets: 1, quantifierValue: 5, resistanceSource: [{ piece: snap(eq, 0), quantityUsed: 99 }] }],
+        },
+      }),
+    ).toThrow(/exceeds available totalQuantity/)
   })
 
   it('accepts unknown pieceId (historical lineage, not validated against current equipment)', () => {
@@ -168,7 +166,7 @@ describe('makeProgressionDef linear', () => {
           {
             sets: 1,
             quantifierValue: 5,
-            resistanceSource: [{ piece: { pieceId: u(999), resistance: 5, quantity: 4 }, quantity: 1 }],
+            resistanceSource: [{ piece: { pieceId: u(999), resistance: 5, totalQuantity: 4 }, quantityUsed: 1 }],
           },
         ],
       },
@@ -194,7 +192,7 @@ describe('makeProgressionDef linear', () => {
           {
             sets: 1,
             quantifierValue: 5,
-            resistanceSource: [{ piece: snap(eq, 2), quantity: 2 }], // 5 * 2 = 10
+            resistanceSource: [{ piece: snap(eq, 2), quantityUsed: 2 }], // 5 * 2 = 10
           },
         ],
       },
@@ -228,7 +226,7 @@ describe('makeProgressionDef heavyLight', () => {
   const heavyVs = (q: number, sets: number, pieceIdx: number, pieceQty: number) => ({
     sets,
     quantifierValue: q,
-    resistanceSource: [{ piece: snap(eq, pieceIdx), quantity: pieceQty }],
+    resistanceSource: [{ piece: snap(eq, pieceIdx), quantityUsed: pieceQty }],
   })
 
   it('accepts valid pair', () => {
@@ -318,7 +316,7 @@ describe('makeProgressionDef heavyLight', () => {
 })
 
 describe('volumeOf / totalResistance helpers', () => {
-  it('totalResistance sums piece.resistance * quantity', () => {
+  it('totalResistance sums piece.resistance * quantityUsed', () => {
     const eq = buildEquipment()
     const ex = buildExercise(eq)
     const prog = makeProgressionDef({
@@ -332,8 +330,8 @@ describe('volumeOf / totalResistance helpers', () => {
             sets: 2,
             quantifierValue: 5,
             resistanceSource: [
-              { piece: snap(eq, 0), quantity: 2 }, // 1.25 * 2 = 2.5
-              { piece: snap(eq, 2), quantity: 1 }, // 5 * 1 = 5
+              { piece: snap(eq, 0), quantityUsed: 2 }, // 1.25 * 2 = 2.5
+              { piece: snap(eq, 2), quantityUsed: 1 }, // 5 * 1 = 5
             ],
           },
         ],

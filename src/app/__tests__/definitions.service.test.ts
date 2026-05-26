@@ -113,4 +113,38 @@ describe('DefinitionsService', () => {
       }),
     ).rejects.toBeInstanceOf(EntityNotFoundError)
   })
+
+  it('createProgression with unknown pieceId throws EntityNotFoundError', async () => {
+    const db = await makeTestDb()
+    const service = freshService(db)
+
+    const eq = await service.createEquipment({
+      name: 'Plates',
+      isCombinable: true,
+      unit: 'kg',
+      pieces: [{ resistance: 5, quantity: 4, position: 0 }],
+    })
+    const ex = await service.createExercise({
+      name: 'Squat',
+      quantifierType: 'reps',
+      quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 1, max: 20 }),
+      equipmentId: eq.id as string,
+      shouldCombineResistance: true,
+    })
+
+    await expect(
+      service.createProgression({
+        name: 'Bad progression',
+        exerciseId: ex.id as string,
+        body: {
+          kind: 'linear',
+          volumeSets: [{
+            sets: 3,
+            quantifierValue: 5,
+            resistanceSource: [{ piece: { pieceId: newId(), resistance: 5, totalQuantity: 4 }, quantityUsed: 1 }],
+          }],
+        },
+      }),
+    ).rejects.toBeInstanceOf(EntityNotFoundError)
+  })
 })

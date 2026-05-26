@@ -130,9 +130,9 @@ function volumeSetToPersisted(vs: VolumeSet) {
       piece: {
         pieceId: unbrandUuid(rs.piece.pieceId),
         resistance: unbrandNumber(rs.piece.resistance),
-        quantity: unbrandNumber(rs.piece.quantity),
+        totalQuantity: unbrandNumber(rs.piece.totalQuantity),
       },
-      quantity: unbrandNumber(rs.quantity),
+      quantityUsed: unbrandNumber(rs.quantityUsed),
     })),
   }
 }
