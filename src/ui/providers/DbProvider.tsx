@@ -1,12 +1,11 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { PGlite } from '@electric-sql/pglite'
 import { Center, Loader } from '@mantine/core'
-import { getDb } from './pglite'
+import { getDb, type Db } from '../../persistence/client'
 
-const DbContext = createContext<PGlite | null>(null)
+const DbContext = createContext<Db | null>(null)
 
 export function DbProvider({ children }: { children: ReactNode }) {
-  const [db, setDb] = useState<PGlite | null>(null)
+  const [db, setDb] = useState<Db | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -25,7 +24,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
   return <DbContext.Provider value={db}>{children}</DbContext.Provider>
 }
 
-export function useDb(): PGlite {
+export function useDb(): Db {
   const db = useContext(DbContext)
   if (!db) throw new Error('useDb outside DbProvider')
   return db
