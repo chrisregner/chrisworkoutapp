@@ -92,30 +92,19 @@ function makeVolumeSet(input: VolumeSetInput, exercise: ExerciseDef, path: strin
     )
   }
 
-  const resistanceSource = input.resistanceSource.map((rs, i) => {
-    const owned = exercise.equipment!.pieces.find(p => p.id === rs.piece.pieceId)
-    if (!owned) {
-      throw new InvariantViolationError(
-        `${path}.resistanceSource[${i}]`,
-        `pieceId ${rs.piece.pieceId} not in exercise equipment`,
-      )
-    }
-    const qty = positiveInt(rs.quantity)
-    if (qty > owned.quantity) {
-      throw new InvariantViolationError(
-        `${path}.resistanceSource[${i}].quantity`,
-        `${qty} exceeds owned ${owned.quantity}`,
-      )
-    }
-    return {
-      piece: {
-        pieceId: owned.id,
-        resistance: positiveNumber(rs.piece.resistance),
-        quantity: positiveInt(rs.piece.quantity),
-      },
-      quantity: qty,
-    }
-  })
+  // Historical snapshot semantics: resistance/quantity on the snapshot are the
+  // immutable record of what was actually lifted. pieceId is retained as lineage
+  // metadata (the piece this came from) but is NOT validated against the current
+  // exercise.equipment.pieces — editing or deleting the source piece does not
+  // invalidate prior progressions/sessions. The snapshot stands on its own.
+  const resistanceSource = input.resistanceSource.map(rs => ({
+    piece: {
+      pieceId: uuidOf(rs.piece.pieceId),
+      resistance: positiveNumber(rs.piece.resistance),
+      quantity: positiveInt(rs.piece.quantity),
+    },
+    quantity: positiveInt(rs.quantity),
+  }))
 
   return { sets, quantifierValue, resistanceSource }
 }

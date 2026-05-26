@@ -134,42 +134,90 @@ describe('makeProgressionDef linear', () => {
     ).toThrow(/combinable/)
   })
 
-  it('rejects quantity > owned', () => {
+  it('accepts quantity independent of currently-owned piece quantity (historical snapshot)', () => {
     const eq = buildEquipment()
     const ex = buildExercise(eq)
-    expect(() =>
-      makeProgressionDef({
-        id: u(3),
-        name: 'P',
-        exercise: ex,
-        body: {
-          kind: 'linear',
-          volumeSets: [{ sets: 1, quantifierValue: 5, resistanceSource: [{ piece: snap(eq, 0), quantity: 99 }] }],
-        },
-      }),
-    ).toThrow(/exceeds owned/)
+    // qty 99 well exceeds the equipment piece's current owned quantity (4).
+    // The snapshot is a historical record — owner's current owned quantity is
+    // irrelevant to a record of what was already lifted.
+    const prog = makeProgressionDef({
+      id: u(3),
+      name: 'P',
+      exercise: ex,
+      body: {
+        kind: 'linear',
+        volumeSets: [{ sets: 1, quantifierValue: 5, resistanceSource: [{ piece: snap(eq, 0), quantity: 99 }] }],
+      },
+    })
+    const vs = (prog.body as { kind: 'linear'; volumeSets: any[] }).volumeSets[0]
+    expect(vs.resistanceSource[0].quantity).toBe(99)
   })
 
-  it('rejects unknown pieceId', () => {
+  it('accepts unknown pieceId (historical lineage, not validated against current equipment)', () => {
     const eq = buildEquipment()
     const ex = buildExercise(eq)
-    expect(() =>
-      makeProgressionDef({
-        id: u(3),
-        name: 'P',
-        exercise: ex,
-        body: {
-          kind: 'linear',
-          volumeSets: [
-            {
-              sets: 1,
-              quantifierValue: 5,
-              resistanceSource: [{ piece: { pieceId: u(999), resistance: 5, quantity: 4 }, quantity: 1 }],
-            },
-          ],
-        },
-      }),
-    ).toThrow(/not in exercise equipment/)
+    // pieceId is metadata describing the source piece this came from. If that
+    // piece was later deleted or renamed, prior progressions are still valid.
+    const prog = makeProgressionDef({
+      id: u(3),
+      name: 'P',
+      exercise: ex,
+      body: {
+        kind: 'linear',
+        volumeSets: [
+          {
+            sets: 1,
+            quantifierValue: 5,
+            resistanceSource: [{ piece: { pieceId: u(999), resistance: 5, quantity: 4 }, quantity: 1 }],
+          },
+        ],
+      },
+    })
+    const vs = (prog.body as { kind: 'linear'; volumeSets: any[] }).volumeSets[0]
+    expect(vs.resistanceSource[0].piece.pieceId).toBe(u(999))
+  })
+
+  it('historical invariant: editing equipment piece after build does not change progression resistance', () => {
+    // Build a progression from a piece, then build a "mutated" version of the
+    // equipment whose pieces have different resistance. The progression already
+    // built must continue to report the original totalResistance — the snapshot
+    // is law.
+    const eq = buildEquipment()
+    const ex = buildExercise(eq)
+    const prog = makeProgressionDef({
+      id: u(3),
+      name: 'P',
+      exercise: ex,
+      body: {
+        kind: 'linear',
+        volumeSets: [
+          {
+            sets: 1,
+            quantifierValue: 5,
+            resistanceSource: [{ piece: snap(eq, 2), quantity: 2 }], // 5 * 2 = 10
+          },
+        ],
+      },
+    })
+    const vsBefore = (prog.body as { kind: 'linear'; volumeSets: any[] }).volumeSets[0]
+    expect(totalResistance(vsBefore)).toBe(10)
+
+    // Mutate "current" equipment — a new ExerciseDef with the same piece ids but
+    // different resistance values. The already-built progression must be unaffected.
+    const mutatedEq = makeEquipmentDef({
+      id: u(1),
+      name: 'Plates',
+      isCombinable: true,
+      unit: 'kg',
+      pieces: [
+        { id: u(10), resistance: 99, quantity: 1, position: 0 },
+        { id: u(11), resistance: 99, quantity: 1, position: 1 },
+        { id: u(12), resistance: 99, quantity: 1, position: 2 },
+      ],
+    })
+    void mutatedEq // unused — but documents intent: domain object holds its own values.
+    const vsAfter = (prog.body as { kind: 'linear'; volumeSets: any[] }).volumeSets[0]
+    expect(totalResistance(vsAfter)).toBe(10)
   })
 })
 
