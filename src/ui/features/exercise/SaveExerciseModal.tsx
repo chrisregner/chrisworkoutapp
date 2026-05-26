@@ -110,11 +110,15 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
 
   function handleSubmit(values: FormValues) {
     if (values.quantifierRuleKind === 'allowed-values') {
-      const invalid = values.allowedValues.some(v => {
+      let hasInvalid = false
+      values.allowedValues.forEach((v, i) => {
         const n = Number(v)
-        return !v || isNaN(n) || n <= 0 || !Number.isInteger(n)
+        if (!v || isNaN(n) || n <= 0 || !Number.isInteger(n)) {
+          form.setFieldError(`allowedValues.${i}`, 'Must be whole number > 0')
+          hasInvalid = true
+        }
       })
-      if (invalid) return
+      if (hasInvalid) return
     }
 
     const quantifierRule = makeQuantifierRule(
@@ -149,15 +153,7 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
     }
   }
 
-  const equipmentSelectData = [
-    { value: '', label: 'None' },
-    ...equipmentList.map(e => ({ value: e.id, label: e.name })),
-  ]
-
-  const validateAllowedValue = (v: string) => {
-    const n = Number(v)
-    return !v || isNaN(n) || n <= 0 || !Number.isInteger(n) ? 'Must be whole number > 0' : null
-  }
+  const equipmentSelectData = equipmentList.map(e => ({ value: e.id, label: e.name }))
 
   return (
     <Modal
@@ -231,11 +227,6 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
                     allowDecimal={false}
                     style={{ flex: 1 }}
                     {...form.getInputProps(`allowedValues.${i}`)}
-                    onChange={v => {
-                      form.setFieldValue(`allowedValues.${i}`, String(v))
-                      form.validateField(`allowedValues.${i}`)
-                    }}
-                    error={validateAllowedValue(values.allowedValues[i] ?? '')}
                   />
                   <ActionIcon
                     variant="subtle"
@@ -264,8 +255,8 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
             label="Equipment"
             placeholder="None"
             data={equipmentSelectData}
-            value={values.equipmentId ?? ''}
-            onChange={v => handleEquipmentChange(v || null)}
+            value={values.equipmentId}
+            onChange={handleEquipmentChange}
             clearable
           />
 
