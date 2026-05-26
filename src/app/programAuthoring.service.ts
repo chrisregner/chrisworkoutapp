@@ -8,6 +8,7 @@ import {
   listEquipmentDefs,
 } from '../persistence/repositories'
 import {
+  EntityNotFoundError,
   makeEquipmentDef,
   makeExerciseDef,
   makeProgressionDef,
@@ -32,7 +33,7 @@ export class ProgramAuthoringService {
     description?: string
     isCombinable: boolean
     unit: Unit
-    pieces: { resistance: number; quantity: number; position?: number }[]
+    pieces: { id?: string; resistance: number; quantity: number; position?: number }[]
   }): Promise<EquipmentDef> {
     const def = makeEquipmentDef({
       id: newId(),
@@ -40,7 +41,7 @@ export class ProgramAuthoringService {
       description: input.description,
       isCombinable: input.isCombinable,
       unit: input.unit,
-      pieces: input.pieces.map(p => ({ ...p, id: newId() })),
+      pieces: input.pieces.map(p => ({ ...p, id: p.id ?? newId() })),
     })
     await saveEquipmentDef(this.db, def)
     return def
@@ -58,7 +59,7 @@ export class ProgramAuthoringService {
       ? await findEquipmentDef(this.db, input.equipmentId)
       : null
     if (input.equipmentId && !equipment) {
-      throw new Error(`equipment ${input.equipmentId} not found`)
+      throw new EntityNotFoundError('equipment', input.equipmentId)
     }
     const def = makeExerciseDef({
       id: newId(),
@@ -80,18 +81,18 @@ export class ProgramAuthoringService {
       description?: string
       isCombinable: boolean
       unit: Unit
-      pieces: { resistance: number; quantity: number; position?: number }[]
+      pieces: { id?: string; resistance: number; quantity: number; position?: number }[]
     },
   ): Promise<EquipmentDef> {
     const existing = await findEquipmentDef(this.db, id)
-    if (!existing) throw new Error(`equipment ${id} not found`)
+    if (!existing) throw new EntityNotFoundError('equipment', id)
     const def = makeEquipmentDef({
       id,
       name: input.name,
       description: input.description,
       isCombinable: input.isCombinable,
       unit: input.unit,
-      pieces: input.pieces.map(p => ({ ...p, id: newId() })),
+      pieces: input.pieces.map(p => ({ ...p, id: p.id ?? newId() })),
     })
     await saveEquipmentDef(this.db, def)
     return def
@@ -103,7 +104,7 @@ export class ProgramAuthoringService {
     body: ProgressionBodyInput
   }): Promise<ProgressionDef> {
     const exercise = await findExerciseDef(this.db, input.exerciseId)
-    if (!exercise) throw new Error(`exercise ${input.exerciseId} not found`)
+    if (!exercise) throw new EntityNotFoundError('exercise', input.exerciseId)
     const def = makeProgressionDef({
       id: newId(),
       name: input.name,

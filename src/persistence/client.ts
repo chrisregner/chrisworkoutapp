@@ -13,7 +13,10 @@ export function getDb(): Promise<Db> {
     await client.waitReady
     await migrate(client)
     return drizzle(client, { schema }) as Db
-  })()
+  })().catch(err => {
+    instancePromise = null
+    throw err
+  })
   return instancePromise
 }
 

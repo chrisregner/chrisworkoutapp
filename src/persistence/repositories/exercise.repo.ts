@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import type { Db } from '../client'
 import { exerciseDefs } from '../schema'
 import type { ExerciseDef } from '../../domain'
+import { EntityNotFoundError } from '../../domain'
 import { exerciseDefToRow, rowToExerciseDef } from './mappers'
 import { findEquipmentDef } from './equipment.repo'
 
@@ -9,9 +10,13 @@ export async function findExerciseDef(db: Db, id: string): Promise<ExerciseDef |
   const rows = await db.select().from(exerciseDefs).where(eq(exerciseDefs.id, id)).limit(1)
   if (rows.length === 0) return null
   const row = rows[0]!
-  const equipment = row.resistanceEquipmentId
-    ? await findEquipmentDef(db, row.resistanceEquipmentId)
-    : null
+  let equipment = null
+  if (row.resistanceEquipmentId) {
+    equipment = await findEquipmentDef(db, row.resistanceEquipmentId)
+    if (!equipment) {
+      throw new EntityNotFoundError('equipment', row.resistanceEquipmentId)
+    }
+  }
   return rowToExerciseDef(row, equipment)
 }
 

@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import type { Db } from '../client'
 import { progressionDefs } from '../schema'
 import type { ProgressionDef } from '../../domain'
+import { EntityNotFoundError } from '../../domain'
 import { progressionDefToRow, rowToProgressionDef } from './mappers'
 import { findExerciseDef } from './exercise.repo'
 
@@ -11,7 +12,7 @@ export async function findProgressionDef(db: Db, id: string): Promise<Progressio
   const row = rows[0]!
   const exercise = await findExerciseDef(db, row.exerciseId)
   if (!exercise) {
-    throw new Error(`progression ${id}: exercise ${row.exerciseId} not found`)
+    throw new EntityNotFoundError('exercise', row.exerciseId)
   }
   return rowToProgressionDef(row, exercise)
 }

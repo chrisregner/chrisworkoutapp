@@ -15,11 +15,12 @@ import {
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { IconPlus, IconTrash } from '@tabler/icons-react'
+import { useEffect } from 'react'
 import { useAddEquipment } from './useAddEquipment'
 import { useUpdateEquipment } from './useUpdateEquipment'
 import type { EquipmentDef, Unit } from '../../../domain'
 
-type PieceField = { resistance: string; quantity: string }
+type PieceField = { id: string | undefined; resistance: string; quantity: string }
 
 type FormValues = {
   name: string
@@ -45,10 +46,10 @@ function buildInitialValues(equipment?: EquipmentDef): FormValues {
       unit: equipment.unit,
       pieces: [...equipment.pieces]
         .sort((a, b) => a.position - b.position)
-        .map(p => ({ resistance: String(p.resistance), quantity: String(p.quantity) })),
+        .map(p => ({ id: p.id, resistance: String(p.resistance), quantity: String(p.quantity) })),
     }
   }
-  return { name: '', description: '', isCombinable: false, unit: 'kg', pieces: [{ resistance: '', quantity: '1' }] }
+  return { name: '', description: '', isCombinable: false, unit: 'kg', pieces: [{ id: undefined, resistance: '', quantity: '1' }] }
 }
 
 export function AddEquipmentModal({ opened, onClose, onSaved, equipment }: Props) {
@@ -72,6 +73,15 @@ export function AddEquipmentModal({ opened, onClose, onSaved, equipment }: Props
     },
   })
 
+  useEffect(() => {
+    if (opened) {
+      form.setValues(buildInitialValues(equipment))
+      form.resetDirty()
+      form.clearErrors()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened])
+
   const onSuccess = () => {
     form.reset()
     onSaved()
@@ -91,6 +101,7 @@ export function AddEquipmentModal({ opened, onClose, onSaved, equipment }: Props
       isCombinable: values.isCombinable,
       unit: values.unit,
       pieces: values.pieces.map((p, i) => ({
+        id: p.id,
         resistance: Number(p.resistance),
         quantity: Number(p.quantity),
         position: i,
@@ -176,7 +187,7 @@ export function AddEquipmentModal({ opened, onClose, onSaved, equipment }: Props
               variant="subtle"
               size="xs"
               leftSection={<IconPlus size={14} />}
-              onClick={() => form.insertListItem('pieces', { resistance: '', quantity: '1' })}
+              onClick={() => form.insertListItem('pieces', { id: undefined, resistance: '', quantity: '1' })}
               style={{ alignSelf: 'flex-start' }}
             >
               Add piece

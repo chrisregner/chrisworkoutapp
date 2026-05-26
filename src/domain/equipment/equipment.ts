@@ -50,6 +50,21 @@ export function makeEquipmentDef(input: EquipmentDefInput & { id: string; pieces
   if (input.pieces.length === 0) {
     throw new InvariantViolationError('equipmentDef.pieces', 'must have >= 1 piece')
   }
+  const seenIds = new Set<string>()
+  for (const p of input.pieces) {
+    if (seenIds.has(p.id)) {
+      throw new InvariantViolationError('equipmentDef.pieces', 'piece ids must be unique')
+    }
+    seenIds.add(p.id)
+  }
+  const seenPositions = new Set<number>()
+  for (const p of input.pieces) {
+    const pos = p.position ?? 0
+    if (seenPositions.has(pos)) {
+      throw new InvariantViolationError('equipmentDef.pieces', 'piece positions must be unique')
+    }
+    seenPositions.add(pos)
+  }
   return {
     id: uuidOf(input.id),
     name: input.name,

@@ -1,17 +1,36 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { Center, Loader } from '@mantine/core'
+import { Alert, Button, Center, Loader, Stack } from '@mantine/core'
 import { getDb, type Db } from '../../persistence/client'
 
 const DbContext = createContext<Db | null>(null)
 
 export function DbProvider({ children }: { children: ReactNode }) {
   const [db, setDb] = useState<Db | null>(null)
+  const [error, setError] = useState<Error | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    getDb().then(d => { if (!cancelled) setDb(d) })
+    setError(null)
+    getDb().then(
+      d => { if (!cancelled) setDb(d) },
+      e => { if (!cancelled) setError(e instanceof Error ? e : new Error(String(e))) },
+    )
     return () => { cancelled = true }
-  }, [])
+  }, [attempt])
+
+  if (error) {
+    return (
+      <Center h="100vh" p="md">
+        <Stack align="center" gap="md">
+          <Alert color="red" title="Failed to initialize database">
+            {error.message}
+          </Alert>
+          <Button onClick={() => setAttempt(a => a + 1)}>Retry</Button>
+        </Stack>
+      </Center>
+    )
+  }
 
   if (!db) {
     return (

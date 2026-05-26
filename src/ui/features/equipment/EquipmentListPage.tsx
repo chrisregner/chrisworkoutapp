@@ -51,7 +51,6 @@ function EquipmentCard({
           </Group>
         </Group>
       </UnstyledButton>
-
       <Collapse in={expanded}>
         <Divider />
         <Stack gap="xs" p="md">
@@ -79,7 +78,7 @@ function EquipmentCard({
             variant="subtle"
             size="xs"
             leftSection={<IconEdit size={14} />}
-            onClick={e => { e.stopPropagation(); onEdit(equipment) }}
+            onClick={() => onEdit(equipment)}
             style={{ alignSelf: 'flex-start' }}
           >
             Edit
