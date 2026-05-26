@@ -5,3 +5,7 @@ dist/
 *.log
 .vite/
 *.tsbuildinfo
+
+# Playwright MCP
+.playwright-mcp/
+*.png
