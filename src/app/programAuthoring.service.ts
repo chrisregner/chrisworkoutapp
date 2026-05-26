@@ -73,6 +73,30 @@ export class ProgramAuthoringService {
     return def
   }
 
+  async updateEquipment(
+    id: string,
+    input: {
+      name: string
+      description?: string
+      isCombinable: boolean
+      unit: Unit
+      pieces: { resistance: number; quantity: number; position?: number }[]
+    },
+  ): Promise<EquipmentDef> {
+    const existing = await findEquipmentDef(this.db, id)
+    if (!existing) throw new Error(`equipment ${id} not found`)
+    const def = makeEquipmentDef({
+      id,
+      name: input.name,
+      description: input.description,
+      isCombinable: input.isCombinable,
+      unit: input.unit,
+      pieces: input.pieces.map(p => ({ ...p, id: newId() })),
+    })
+    await saveEquipmentDef(this.db, def)
+    return def
+  }
+
   async createProgression(input: {
     name: string
     exerciseId: string
