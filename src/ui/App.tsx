@@ -7,7 +7,7 @@ import { BottomNav } from './components/BottomNav'
 
 export function App() {
   return (
-    <AppShell footer={{ height: 'auto' }}>
+    <AppShell footer={{ height: 64 }}>
       <AppShell.Main>
         <Routes>
           <Route path="/" element={<Text p="md">Hello world</Text>} />
