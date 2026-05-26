@@ -4,15 +4,17 @@ import * as schema from './schema'
 
 export type Db = PgliteDatabase<typeof schema> & { $client: PGlite }
 
-let instance: Db | null = null
+let instancePromise: Promise<Db> | null = null
 
-export async function getDb(): Promise<Db> {
-  if (instance) return instance
-  const client = new PGlite('idb://chrisworkoutapp')
-  await client.waitReady
-  await migrate(client)
-  instance = drizzle(client, { schema }) as Db
-  return instance
+export function getDb(): Promise<Db> {
+  if (instancePromise) return instancePromise
+  instancePromise = (async () => {
+    const client = new PGlite('idb://chrisworkoutapp')
+    await client.waitReady
+    await migrate(client)
+    return drizzle(client, { schema }) as Db
+  })()
+  return instancePromise
 }
 
 async function migrate(client: PGlite): Promise<void> {
