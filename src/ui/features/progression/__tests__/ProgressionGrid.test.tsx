@@ -88,11 +88,12 @@ describe('ProgressionGrid', () => {
     expect(screen.getByText('5 reps')).toBeInTheDocument()
     expect(screen.getByText('8 reps')).toBeInTheDocument()
 
-    // Row labels: 2 configs × 2 set values = 4 rows.
-    expect(screen.getByText('10kg × 3 sets')).toBeInTheDocument()
-    expect(screen.getByText('10kg × 5 sets')).toBeInTheDocument()
-    expect(screen.getByText('20kg × 3 sets')).toBeInTheDocument()
-    expect(screen.getByText('20kg × 5 sets')).toBeInTheDocument()
+    // Resistance label appears once per row (visually grouped via visibility-hidden on repeats).
+    expect(screen.getAllByText('10kg')).toHaveLength(2)
+    expect(screen.getAllByText('20kg')).toHaveLength(2)
+    // Sets shown in dedicated mini-column per row.
+    expect(screen.getAllByText('×3')).toHaveLength(2)
+    expect(screen.getAllByText('×5')).toHaveLength(2)
   })
 
   it('shows the 1-based step number on each selected cell in selection order', () => {

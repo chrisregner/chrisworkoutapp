@@ -90,8 +90,11 @@ export function ProgressionGrid({
     resistanceByConfig.set(c.id, resistanceTotal(c.source))
   }
 
-  const cellW = 64
-  const headerW = 140
+  const cellW = 44
+  const cellH = 44
+  const resistanceW = 72
+  const setsW = 36
+  const headerW = resistanceW + setsW
 
   return (
     <ScrollArea type="auto">
@@ -108,15 +111,26 @@ export function ProgressionGrid({
           ))}
         </Group>
 
-        {rows.map(row => (
+        {rows.map((row, idx) => {
+          const repeatResistance = idx > 0 && rows[idx - 1]!.configId === row.configId
+          return (
           <Group
             key={`${row.configId}|${row.sets}`}
             gap={0}
             wrap="nowrap"
             style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
           >
-            <Box style={{ width: headerW, flexShrink: 0, padding: '6px 8px' }}>
-              <Text size="xs" lineClamp={1}>{row.resistanceLabel} × {row.sets} sets</Text>
+            <Box style={{ width: resistanceW, flexShrink: 0, padding: '6px 6px' }}>
+              <Text
+                size="xs"
+                lineClamp={1}
+                style={repeatResistance ? { visibility: 'hidden' } : undefined}
+              >
+                {row.resistanceLabel}
+              </Text>
+            </Box>
+            <Box style={{ width: setsW, flexShrink: 0, padding: '6px 4px', textAlign: 'right' }}>
+              <Text size="xs" c="dimmed" lineClamp={1}>×{row.sets}</Text>
             </Box>
             {cols.map(rep => {
               const cellId = `${row.configId}|${row.sets}|${rep}`
@@ -135,7 +149,7 @@ export function ProgressionGrid({
                     position: 'relative',
                     width: cellW,
                     flexShrink: 0,
-                    height: 48,
+                    height: cellH,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -163,7 +177,8 @@ export function ProgressionGrid({
               )
             })}
           </Group>
-        ))}
+          )
+        })}
       </Box>
     </ScrollArea>
   )

@@ -27,6 +27,8 @@
 //   with the existing name pre-filled and no Save button visible
 // - when the user clicks the Edit pencil, fields become editable and Save
 //   appears; clicking Cancel returns to view mode
+// - when the user edits fields and clicks Cancel, the form resets to the
+//   persisted values (no stale edits leak into the next edit session)
 // - when the user edits the name and saves, the persisted progression is
 //   updated
 //
@@ -192,15 +194,14 @@ async function seedFixtures(): Promise<{ db: Awaited<ReturnType<typeof makeTestD
   }
 }
 
-/** Find the cell buttons in a given grid row by walking up from the row label
- *  text ("{resistanceLabel} × {sets} sets"). */
+/** Find the cell buttons in a given grid row via cell aria-label, which always
+ *  begins with "{resistanceLabel}, {sets} sets, ...". Accepts a regex matching
+ *  that prefix (e.g. /^Unloaded, 3 sets,/). */
 function findCellButtonsForRow(rowLabel: RegExp): HTMLElement[] {
-  const labelEl = screen.getByText(rowLabel)
-  // Walk up to the row container (a Mantine Group div).
-  const rowContainer = labelEl.closest('div')!.parentElement
-  if (!rowContainer) return []
-  // The row container has the label Box and then the cell buttons as siblings.
-  return within(rowContainer as HTMLElement).getAllByRole('button')
+  return screen.getAllByRole('button').filter(btn => {
+    const label = btn.getAttribute('aria-label')
+    return label !== null && rowLabel.test(label)
+  })
 }
 
 /** Add an integer value via a ChipList scoped under a fieldset (legend).
@@ -277,10 +278,9 @@ describe('SaveProgressionModal', () => {
     await addChip(user, /^reps$/i, 5)
 
     // Bodyweight gives an implicit "Unloaded" config — the grid has one row
-    // ("Unloaded × 3 sets") and one column (5 reps), hence one cell button.
-    const rowLabel = await screen.findByText(/Unloaded × 3 sets/i)
-    expect(rowLabel).toBeInTheDocument()
-    const cells = findCellButtonsForRow(/Unloaded × 3 sets/i)
+    // (Unloaded, 3 sets) and one column (5 reps), hence one cell button.
+    expect((await screen.findAllByText(/Unloaded/i)).length).toBeGreaterThan(0)
+    const cells = findCellButtonsForRow(/^Unloaded, 3 sets,/i)
     expect(cells.length).toBeGreaterThanOrEqual(1)
     await user.click(cells[0]!)
 
@@ -316,9 +316,9 @@ describe('SaveProgressionModal', () => {
 
     // Non-combinable equipment seeds configs for ALL pieces by default — both
     // 12kg and 16kg rows are pre-populated. Pick the 16kg row's cell.
-    expect(await screen.findByText(/16kg × 3 sets/)).toBeInTheDocument()
+    expect((await screen.findAllByText(/16kg/)).length).toBeGreaterThan(0)
 
-    const cells = findCellButtonsForRow(/16kg × 3 sets/)
+    const cells = findCellButtonsForRow(/^16kg, 3 sets,/)
     expect(cells.length).toBeGreaterThanOrEqual(1)
     await user.click(cells[0]!)
 
@@ -456,6 +456,47 @@ describe('SaveProgressionModal', () => {
     // Back to view mode.
     expect(await screen.findByText('Progression')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+  })
+
+  it('resets edited form values back to persisted values when Cancel is clicked', async () => {
+    const { db, seed } = await seedFixtures()
+    const created = await seed.service.createProgression({
+      name: 'Original Name',
+      exerciseId: seed.exerciseBodyweight.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [
+          { sets: 3, quantifierValue: 5, resistanceSource: [] },
+        ],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    // Mutate name and add an extra reps chip while in edit mode.
+    const nameInput = await screen.findByLabelText('Name')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Throwaway Name')
+    await addChip(user, /^reps$/i, 8)
+    const repsGroup = await screen.findByRole('group', { name: /^reps$/i })
+    expect(within(repsGroup).getByText('8')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    // Back in view mode — fields reflect persisted values, not the edits.
+    expect(await screen.findByText('Progression')).toBeInTheDocument()
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Original Name')
+    const repsGroupAfter = await screen.findByRole('group', { name: /^reps$/i })
+    expect(within(repsGroupAfter).queryByText('8')).not.toBeInTheDocument()
+    expect(within(repsGroupAfter).getByText('5')).toBeInTheDocument()
+
+    // Re-enter edit mode — still the persisted values (no stale edit state).
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Original Name')
   })
 
   it('persists name changes when editing an existing progression', async () => {
@@ -641,7 +682,7 @@ describe('SaveProgressionModal', () => {
 
     // The "10kg" config chip is visible; in view mode there is no Remove
     // control on it (readOnly hides the close action).
-    expect(await screen.findByText('10kg')).toBeInTheDocument()
+    expect((await screen.findAllByText('10kg')).length).toBeGreaterThan(0)
     expect(
       screen.queryByRole('button', { name: /remove 10kg/i }),
     ).not.toBeInTheDocument()
@@ -825,8 +866,8 @@ describe('SaveProgressionModal', () => {
     await user.type(await screen.findByLabelText('Name'), 'Doomed')
     await addChip(user, /^sets$/i, 3)
     await addChip(user, /^reps$/i, 5)
-    expect(await screen.findByText(/Unloaded × 3 sets/i)).toBeInTheDocument()
-    const cells = findCellButtonsForRow(/Unloaded × 3 sets/i)
+    expect((await screen.findAllByText(/Unloaded/i)).length).toBeGreaterThan(0)
+    const cells = findCellButtonsForRow(/^Unloaded, 3 sets,/i)
     await user.click(cells[0]!)
 
     // Delete the exercise out from under the modal. The modal already holds a
