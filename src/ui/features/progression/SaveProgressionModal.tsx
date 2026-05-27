@@ -10,11 +10,12 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
-import { IconEdit } from '@tabler/icons-react'
+import { IconEdit, IconTrash } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { ruleAccepts } from '../../../domain'
 import type { EquipmentDef, ExerciseDef, ProgressionDef, VolumeSetInput } from '../../../domain'
 import { ChipList } from './ChipList'
+import { DeleteProgressionModal } from './DeleteProgressionModal'
 import { ProgressionGrid } from './ProgressionGrid'
 import {
   CombinableResistance,
@@ -238,6 +239,7 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression }:
   }, [configs, setsValues, repValues])
 
   const { mutate, isPending, error } = useSaveProgression({ onSuccess: onClose })
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   function handleToggleCell(cellId: string) {
     setSelectedCells(prev =>
@@ -284,9 +286,21 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression }:
         <Group gap="xs" align="center">
           <Text fw={700} size="lg">{title}</Text>
           {progression && mode === 'view' && (
-            <ActionIcon variant="subtle" size="sm" onClick={() => setMode('edit')} title="Edit">
-              <IconEdit size={16} />
-            </ActionIcon>
+            <>
+              <ActionIcon variant="subtle" size="sm" onClick={() => setMode('edit')} title="Edit">
+                <IconEdit size={16} />
+              </ActionIcon>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                color="red"
+                onClick={() => setDeleteConfirmOpen(true)}
+                title="Delete"
+                aria-label="Delete progression"
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </>
           )}
         </Group>
       }
@@ -387,6 +401,15 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression }:
           </Group>
         )}
       </Stack>
+
+      {progression && (
+        <DeleteProgressionModal
+          progression={deleteConfirmOpen ? progression : null}
+          exerciseId={exercise.id as string}
+          onClose={() => setDeleteConfirmOpen(false)}
+          onDeleted={onClose}
+        />
+      )}
     </Modal>
   )
 }

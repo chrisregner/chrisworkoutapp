@@ -30,6 +30,12 @@
 // - when the user edits the name and saves, the persisted progression is
 //   updated
 //
+// Delete
+// - when the user clicks the trash icon in view mode and confirms, the
+//   progression is removed and the modal closes
+// - when the user opens the delete confirm and cancels, the progression is
+//   kept and the view modal remains open
+//
 // Server error → human message
 // - when the exercise referenced by the modal is deleted before save, the
 //   modal surfaces the EntityNotFoundError message in an alert (typed error
@@ -444,6 +450,72 @@ describe('SaveProgressionModal', () => {
     expect(persisted).toHaveLength(1)
     expect(persisted[0]!.name).toBe('New Name')
     expect(persisted[0]!.id).toBe(created.id)
+  })
+
+  it('deletes the progression and closes the modal when confirmed', async () => {
+    const { db, seed } = await seedFixtures()
+    const created = await seed.service.createProgression({
+      name: 'To Be Deleted',
+      exerciseId: seed.exerciseBodyweight.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [
+          { sets: 3, quantifierValue: 5, resistanceSource: [] },
+        ],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    await user.click(await screen.findByRole('button', { name: /delete progression/i }))
+
+    // Confirm modal appears with its own Delete button.
+    const confirmDialog = await screen.findByRole('dialog', { name: /delete progression/i })
+    await user.click(within(confirmDialog).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Progression')).not.toBeInTheDocument()
+    })
+
+    const persisted = await seed.service.listProgressionsByExercise(
+      seed.exerciseBodyweight.id as string,
+    )
+    expect(persisted).toHaveLength(0)
+  })
+
+  it('keeps the progression when the delete confirm is cancelled', async () => {
+    const { db, seed } = await seedFixtures()
+    const created = await seed.service.createProgression({
+      name: 'Stay',
+      exerciseId: seed.exerciseBodyweight.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [
+          { sets: 3, quantifierValue: 5, resistanceSource: [] },
+        ],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    await user.click(await screen.findByRole('button', { name: /delete progression/i }))
+
+    const confirmDialog = await screen.findByRole('dialog', { name: /delete progression/i })
+    await user.click(within(confirmDialog).getByRole('button', { name: 'Cancel' }))
+
+    // View modal still open.
+    expect(await screen.findByText('Progression')).toBeInTheDocument()
+
+    const persisted = await seed.service.listProgressionsByExercise(
+      seed.exerciseBodyweight.id as string,
+    )
+    expect(persisted).toHaveLength(1)
   })
 
   it('surfaces an EntityNotFoundError as a readable Alert when save fails', async () => {

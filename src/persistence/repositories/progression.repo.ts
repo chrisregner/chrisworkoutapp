@@ -26,6 +26,10 @@ export async function findProgressionDef(db: Db, id: string): Promise<Progressio
   return rowToProgressionDef(row, exercise)
 }
 
+export async function deleteProgressionDef(db: Db, id: string): Promise<void> {
+  await db.delete(progressionDefs).where(eq(progressionDefs.id, id))
+}
+
 export async function saveProgressionDef(db: Db, def: ProgressionDef): Promise<void> {
   const row = progressionDefToRow(def)
   await db

@@ -8,6 +8,7 @@ import {
   saveProgressionDef,
   deleteEquipmentDef,
   deleteExerciseDef,
+  deleteProgressionDef,
   countExercisesUsingEquipment,
   listEquipmentDefs,
   listExerciseDefs,
@@ -207,6 +208,12 @@ export class DefinitionsService {
     const def = makeProgressionDef({ id, name: input.name, exercise, body: input.body })
     await saveProgressionDef(this.db, def)
     return def
+  }
+
+  async deleteProgression(id: string): Promise<void> {
+    const existing = await findProgressionDef(this.db, id)
+    if (!existing) throw new EntityNotFoundError('progression', id)
+    await deleteProgressionDef(this.db, id)
   }
 }
 
