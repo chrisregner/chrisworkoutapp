@@ -94,10 +94,11 @@ export function ProgressionGrid({
   const cellH = 44
   const headerW = 64
   const unitLabel = quantifierType === 'reps' ? 'reps' : 's'
+  const bleedX = 'var(--mantine-spacing-md)'
 
   return (
-    <ScrollArea type="auto">
-      <Box style={{ minWidth: headerW + cols.length * cellW }}>
+    <ScrollArea type="auto" style={{ marginInline: `calc(${bleedX} * -1)` }}>
+      <Box style={{ minWidth: `calc(${headerW + cols.length * cellW}px + ${bleedX} * 2)`, paddingInline: bleedX }}>
         <Group gap={0} wrap="nowrap" align="flex-end" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
           <Box style={{ width: headerW, flexShrink: 0 }} />
           {cols.map(rep => (
