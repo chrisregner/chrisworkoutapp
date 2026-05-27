@@ -127,6 +127,27 @@ Domain failures are typed (`InvariantViolationError`, `EntityNotFoundError`,
 etc.), not string-matched. UI can distinguish recoverable user errors from
 system errors without parsing messages.
 
+### Presentation state vs domain state
+
+Before adding a field to a domain type, run two tests:
+
+1. Does removing this field change what the training program *means*, or only
+   how the user *views* it?
+2. Would two devices opening the same progression need to agree on this value?
+
+If either answer points to "meaning" or "must agree," it's domain state. If
+both point to "view only," it's presentation state and lives outside the
+domain object.
+
+Resolved cases:
+
+- **`plannedSets` / `plannedReps`** — domain. Defines the plan's structure,
+  evolves over time, and must be a superset of any cell holding `volumeSets`.
+- **`availablePieceIds` on `ExerciseDef`** — domain. A constraint on which
+  loads are valid, not a UI default for a picker.
+- **`sortOrder`** — presentation. Persisted outside the domain object via a
+  separate repository method.
+
 ## Patterns deliberately NOT used
 
 These are skipped on purpose, not by accident:
