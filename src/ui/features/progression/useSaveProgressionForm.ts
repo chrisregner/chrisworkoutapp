@@ -54,6 +54,21 @@ export function useSaveProgressionForm({ opened, exercise, progression }: Params
     )
   }, [configs, setsValues, repValues])
 
+  function enterEdit() {
+    setMode('edit')
+  }
+
+  function cancelEdit() {
+    const fresh = buildInitialState(exercise, progression)
+    setName(fresh.name)
+    setSetsValues(fresh.setsValues)
+    setRepValues(fresh.repValues)
+    setConfigs(fresh.configs)
+    setSelectedCells(fresh.selectedCells)
+    setSortOrder(fresh.sortOrder)
+    setMode('view')
+  }
+
   function toggleCell(cellId: string) {
     setSelectedCells(prev =>
       prev.includes(cellId) ? prev.filter(id => id !== cellId) : [...prev, cellId],
@@ -82,7 +97,8 @@ export function useSaveProgressionForm({ opened, exercise, progression }: Params
 
   return {
     mode,
-    setMode,
+    enterEdit,
+    cancelEdit,
     name,
     setName,
     setsValues,

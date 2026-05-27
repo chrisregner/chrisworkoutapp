@@ -46,7 +46,7 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression }:
         <SaveProgressionTitle
           title={title}
           showActions={!!progression && form.mode === 'view'}
-          onEdit={() => form.setMode('edit')}
+          onEdit={form.enterEdit}
           onDelete={() => setDeleteConfirmOpen(true)}
         />
       }
@@ -122,7 +122,7 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression }:
         {form.mode === 'edit' && (
           <Group gap="xs">
             {progression && (
-              <Button variant="subtle" onClick={() => form.setMode('view')} disabled={isPending}>
+              <Button variant="subtle" onClick={form.cancelEdit} disabled={isPending}>
                 Cancel
               </Button>
             )}
