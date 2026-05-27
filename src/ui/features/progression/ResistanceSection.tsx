@@ -21,7 +21,7 @@ export function NoEquipmentResistance({
   // Implicit "Unloaded" config (empty source) is always present and not removable.
   // Additional configs are ad-hoc resistance entries (pieceId omitted — no parent piece).
   const weighted = configs.filter(c => c.source.length > 0)
-  const values = weighted.map(c => c.source[0]!.piece.resistance)
+  const values = weighted.map(c => c.source[0]!.piece.resistance).sort((a, b) => a - b)
 
   function handleAdd(v: number) {
     if (weighted.some(c => c.source[0]!.piece.resistance === v)) return
@@ -94,9 +94,11 @@ export function NonCombinableResistance({
     }
   }
 
+  const sortedPieces = [...equipment.pieces].sort((a, b) => (a.resistance as number) - (b.resistance as number))
+
   return (
     <Group gap="xs" wrap="wrap">
-      {equipment.pieces.map(piece => {
+      {sortedPieces.map(piece => {
         const pieceId = piece.id as string
         const qty = piece.quantity as number
         const label = `${piece.resistance as number}${equipment.unit}${qty > 1 ? ` ×${qty}` : ''}`
@@ -198,7 +200,7 @@ export function CombinableResistance({ equipment, configs, onChange, readOnly }:
       {!readOnly && (draftOpen ? (
         <Stack gap="xs" p="sm" style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 8 }}>
           <Text size="sm" fw={500}>New configuration</Text>
-          {equipment.pieces.map(piece => {
+          {[...equipment.pieces].sort((a, b) => (a.resistance as number) - (b.resistance as number)).map(piece => {
             const pieceId = piece.id as string
             const max = piece.quantity as number
             const d = draftQtys.find(d => d.pieceId === pieceId)

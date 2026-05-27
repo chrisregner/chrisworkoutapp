@@ -36,7 +36,7 @@ function buildInitialValues(equipment?: EquipmentDef): FormValues {
       isCombinable: equipment.isCombinable,
       unit: equipment.unit,
       pieces: [...equipment.pieces]
-        .sort((a, b) => a.position - b.position)
+        .sort((a, b) => (a.resistance as number) - (b.resistance as number))
         .map(p => ({ id: p.id, resistance: String(p.resistance), quantity: String(p.quantity) })),
     }
   }

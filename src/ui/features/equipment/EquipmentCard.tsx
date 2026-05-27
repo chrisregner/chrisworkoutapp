@@ -24,7 +24,7 @@ export function EquipmentCard({
   onDelete: (e: EquipmentDef) => void
 }) {
   const [expanded, { toggle }] = useDisclosure(false)
-  const sorted = [...equipment.pieces].sort((a, b) => a.position - b.position)
+  const sorted = [...equipment.pieces].sort((a, b) => (a.resistance as number) - (b.resistance as number))
 
   return (
     <Card withBorder radius="md" p={0}>
