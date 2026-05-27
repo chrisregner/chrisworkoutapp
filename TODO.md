@@ -13,6 +13,7 @@
   - Heavy/Low
 
 ## Goal 2: Program Definition
+- Spec: [specs/program-definition.md](specs/program-definition.md) — 4 increments (domain → persistence → service → UI)
 
 ## Goal 3: Exercise Flow
 
