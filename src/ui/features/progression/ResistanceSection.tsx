@@ -3,7 +3,7 @@ import { IconPlus, IconX } from '@tabler/icons-react'
 import { useState } from 'react'
 import type { EquipmentDef, VolumeSetInput } from '../../../domain'
 import { ChipList } from './ChipList'
-import { newConfigId, resistanceTotal, sourceKey, type ResistanceConfig } from './SaveProgressionModal'
+import { newConfigId, resistanceTotal, sourceKey, type ResistanceConfig } from './saveProgressionState'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-component: resistance section variants

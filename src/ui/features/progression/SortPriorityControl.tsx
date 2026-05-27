@@ -1,6 +1,6 @@
 import { ActionIcon, Group, Stack, Text } from '@mantine/core'
 import { IconArrowDown, IconArrowUp, IconChevronDown, IconChevronUp } from '@tabler/icons-react'
-import type { SortEntry } from './SaveProgressionModal'
+import type { SortEntry } from './saveProgressionState'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-component: sort priority control

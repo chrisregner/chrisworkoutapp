@@ -22,7 +22,7 @@ import { MantineProvider } from '@mantine/core'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProgressionGrid } from '../ProgressionGrid'
-import type { ResistanceConfig, SortEntry } from '../SaveProgressionModal'
+import type { ResistanceConfig, SortEntry } from '../saveProgressionState'
 import type { VolumeSetInput } from '../../../../domain'
 
 function renderGrid(props: Partial<Parameters<typeof ProgressionGrid>[0]> = {}) {

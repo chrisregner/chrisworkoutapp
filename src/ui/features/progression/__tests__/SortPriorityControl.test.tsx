@@ -16,7 +16,7 @@ import { MantineProvider } from '@mantine/core'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SortPriorityControl } from '../SortPriorityControl'
-import type { SortEntry } from '../SaveProgressionModal'
+import type { SortEntry } from '../saveProgressionState'
 
 const DEFAULT_SORT: [SortEntry, SortEntry, SortEntry] = [
   { dim: 'Resistance', dir: 'asc' },

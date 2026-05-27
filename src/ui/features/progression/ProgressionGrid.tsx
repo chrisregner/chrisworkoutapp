@@ -1,5 +1,5 @@
 import { Box, Group, ScrollArea, Text, UnstyledButton } from '@mantine/core'
-import type { ResistanceConfig, SortDimension, SortEntry } from './SaveProgressionModal'
+import type { ResistanceConfig, SortDimension, SortEntry } from './saveProgressionState'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-component: grid
