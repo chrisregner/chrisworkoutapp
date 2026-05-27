@@ -19,12 +19,15 @@ days. Workout execution / logging / rotation pointer state lives elsewhere
 | No-progression slot | Allowed. Must declare `sets` + `quantifierValue` + optional `restBetweenSets`. Resistance is freestyle at workout time. |
 | Rest period | `durationSeconds` + optional `label`. |
 | Min sizes | `≥1` day, `≥1` exercise slot per day, no upper bound. |
-| Out of scope | Rotation pointer state, starting/ending sessions, logging, increment/decrement of progression, workout-time decisions. The execution domain *will consume* a `Program`, but is built in Goal 3. |
+| Slot role | `slot.role: 'warmup' \| 'main' \| 'cooldown'`, optional, defaults to `'main'`. Per-use, not on `ExerciseDef` (a jump rope can be warmup in one slot, main in another). Goal 3 workout flow groups by role for timer-group mode. |
+| Out of scope | Rotation pointer state, starting/ending sessions, logging, increment/decrement of progression, workout-time decisions, **progression cursor** (current step within a `ProgressionDef.body.volumeSets[]`). The execution domain *will consume* a `Program` and own the cursor — see Goal 3. |
 
 ## Open follow-ups (NOT this increment)
 
 - Editing a `Program` after creation: in-place vs snapshot-at-workout-start. Decide in Goal 3 when workout logging exists. For now, edits are in-place; no historical workouts to break yet.
 - Reordering UX (drag handle vs up/down) — designer choice during inc 4.
+- **ProgressionCursor** — current step index per `ProgressionDef`. Belongs to Goal 3 (workout flow / program state). One cursor per `ProgressionDef` (lifter's state with the movement is global, not program-bound). HL steps use single int (step = heavy+light pair).
+- **Timer-group mode** (warmup/cooldown grouped timer vs per-exercise timer) — Goal 3. Consumes `slot.role`.
 
 ---
 
@@ -41,6 +44,7 @@ type RestPeriod = {
 type ExerciseSlot = {
   readonly kind: 'exercise'
   readonly exercise: ExerciseDef
+  readonly role: 'warmup' | 'main' | 'cooldown'   // defaults to 'main' if input omits it
   readonly progression?: ProgressionDef       // optional
   readonly hlPick?: 'heavy' | 'light'         // required iff progression.body.kind === 'heavyLight'
   readonly fallback?: {                       // present iff progression is absent
@@ -92,6 +96,7 @@ execution time. ProgramDef itself is not duplicated in storage.
       - Otherwise `hlPick` must be absent.
    c. If `fallback` set: `hlPick` must be absent.
 6. `RestPeriod.durationSeconds > 0`.
+7. `ExerciseSlot.role` defaults to `'main'` when omitted from input; otherwise must be one of `'warmup' | 'main' | 'cooldown'`.
 
 ### Adjustment to `progression.ts`
 
@@ -195,7 +200,7 @@ CREATE TABLE program_activity (
 `body` shape (jsonb):
 
 - kind=`rest`: `{ durationSeconds, label? }`
-- kind=`exercise`: `{ exerciseId, progressionId? | fallback?, hlPick? }`
+- kind=`exercise`: `{ exerciseId, role?, progressionId? | fallback?, hlPick? }` (`role` omitted = `'main'`)
 
 `exerciseId` and `progressionId` reference catalog rows; **no FK constraint**
 on jsonb keys, but the repo joins/loads them on read and the smart
@@ -288,6 +293,7 @@ class ProgramAuthoringService {
     - Picks `ProgressionDef` constrained to that exercise; "None (freestyle)" allowed.
     - If progression is HL: heavy/light radio.
     - If no progression: sets + quantifierValue + optional restBetweenSets fields.
+    - Role select (warmup/main/cooldown), defaults to main.
 - Save calls service; query keys invalidated on success; typed errors surfaced inline (HL pick missing → field-level error).
 - Empty-day banner if day has zero exercise slots.
 - HL preview: when `hasHeavyLight` becomes true, a small note appears: "Rolling rotation will replay days with heavy/light flipped."
