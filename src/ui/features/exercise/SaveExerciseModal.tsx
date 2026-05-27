@@ -4,15 +4,14 @@ import {
   Modal,
   Stack,
   TextInput,
-  Title,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSaveExercise } from './useSaveExercise'
 import { useEquipmentList } from '../equipment/useEquipmentList'
 import { CountingSection } from './CountingSection'
 import { EquipmentSection } from './EquipmentSection'
-import { makeQuantifierRule } from '../../../domain'
+import { InvariantViolationError, makeQuantifierRule } from '../../../domain'
 import type { ExerciseDef, QuantifierType } from '../../../domain'
 
 type FormValues = {
@@ -85,11 +84,14 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
     },
   })
 
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
   useEffect(() => {
     if (opened) {
       form.setValues(buildInitialValues(exercise))
       form.resetDirty()
       form.clearErrors()
+      setSubmitError(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened])
@@ -102,6 +104,8 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
   })
 
   function handleSubmit(values: FormValues) {
+    setSubmitError(null)
+
     if (values.quantifierRuleKind === 'allowed-values') {
       let hasInvalid = false
       values.allowedValues.forEach((v, i) => {
@@ -114,11 +118,17 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
       if (hasInvalid) return
     }
 
-    const quantifierRule = makeQuantifierRule(
-      values.quantifierRuleKind === 'min-max'
-        ? { kind: 'min-max', min: Number(values.minMaxMin), max: Number(values.minMaxMax) }
-        : { kind: 'allowed-values', values: values.allowedValues.map(Number) },
-    )
+    let quantifierRule
+    try {
+      quantifierRule = makeQuantifierRule(
+        values.quantifierRuleKind === 'min-max'
+          ? { kind: 'min-max', min: Number(values.minMaxMin), max: Number(values.minMaxMax) }
+          : { kind: 'allowed-values', values: values.allowedValues.map(Number) },
+      )
+    } catch (err) {
+      setSubmitError(err instanceof InvariantViolationError ? err.message : String(err))
+      return
+    }
 
     const input = {
       name: values.name.trim(),
@@ -152,13 +162,15 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
     <Modal
       opened={opened}
       onClose={onClose}
-      title={<Title order={4}>{isEdit ? 'Edit Exercise' : 'Add Exercise'}</Title>}
+      title={isEdit ? 'Edit Exercise' : 'Add Exercise'}
       fullScreen
       styles={{ body: { paddingBottom: 80 } }}
     >
       <form onSubmit={form.onSubmit(handleSubmit)}>
         <Stack gap="md">
-          {error && <Alert color="red">{error.message}</Alert>}
+          {(error || submitError) && (
+            <Alert color="red">{submitError ?? error?.message}</Alert>
+          )}
 
           <TextInput label="Name" placeholder="e.g. Romanian Deadlift" {...form.getInputProps('name')} />
 

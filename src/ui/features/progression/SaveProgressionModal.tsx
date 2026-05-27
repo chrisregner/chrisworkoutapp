@@ -9,7 +9,6 @@ import {
   Stack,
   Text,
   TextInput,
-  Title,
 } from '@mantine/core'
 import { IconEdit } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
@@ -283,7 +282,7 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression }:
       onClose={onClose}
       title={
         <Group gap="xs" align="center">
-          <Title order={4}>{title}</Title>
+          <Text fw={700} size="lg">{title}</Text>
           {progression && mode === 'view' && (
             <ActionIcon variant="subtle" size="sm" onClick={() => setMode('edit')} title="Edit">
               <IconEdit size={16} />

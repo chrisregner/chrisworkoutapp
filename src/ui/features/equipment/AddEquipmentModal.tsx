@@ -4,7 +4,6 @@ import {
   Modal,
   Stack,
   TextInput,
-  Title,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { useEffect } from 'react'
@@ -107,7 +106,7 @@ export function AddEquipmentModal({ opened, onClose, equipment }: Props) {
     <Modal
       opened={opened}
       onClose={onClose}
-      title={<Title order={4}>{isEdit ? 'Edit Equipment' : 'Add Equipment'}</Title>}
+      title={isEdit ? 'Edit Equipment' : 'Add Equipment'}
       fullScreen
       styles={{ body: { paddingBottom: 80 } }}
     >

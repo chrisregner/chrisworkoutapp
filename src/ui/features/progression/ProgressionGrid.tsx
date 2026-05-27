@@ -117,9 +117,12 @@ export function ProgressionGrid({
               const cellId = `${row.configId}|${row.sets}|${rep}`
               const stepNum = cellOrder.get(cellId)
               const selected = stepNum !== undefined
+              const unitLabel = quantifierType === 'reps' ? 'reps' : 's'
               return (
                 <UnstyledButton
                   key={rep}
+                  aria-label={`${row.resistanceLabel}, ${row.sets} sets, ${rep} ${unitLabel}`}
+                  aria-pressed={selected}
                   onClick={() => !readOnly && onToggleCell(cellId)}
                   style={{
                     width: cellW,
