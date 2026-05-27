@@ -92,21 +92,22 @@ export function ProgressionGrid({
 
   const cellW = 44
   const cellH = 44
-  const resistanceW = 72
-  const setsW = 36
-  const headerW = resistanceW + setsW
+  const headerW = 64
+  const unitLabel = quantifierType === 'reps' ? 'reps' : 's'
 
   return (
     <ScrollArea type="auto">
       <Box style={{ minWidth: headerW + cols.length * cellW }}>
-        <Group gap={0} wrap="nowrap" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+        <Group gap={0} wrap="nowrap" align="flex-end" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
           <Box style={{ width: headerW, flexShrink: 0 }} />
           {cols.map(rep => (
             <Box
               key={rep}
               style={{ width: cellW, flexShrink: 0, textAlign: 'center', padding: '6px 2px' }}
             >
-              <Text size="xs" fw={500}>{rep} {quantifierType === 'reps' ? 'reps' : 's'}</Text>
+              <Text size="xs" fw={500} lh={1.15} style={{ whiteSpace: 'pre-line' }}>
+                {`${rep}\n${unitLabel}`}
+              </Text>
             </Box>
           ))}
         </Group>
@@ -120,23 +121,21 @@ export function ProgressionGrid({
             wrap="nowrap"
             style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
           >
-            <Box style={{ width: resistanceW, flexShrink: 0, padding: '6px 6px' }}>
+            <Box style={{ width: headerW, flexShrink: 0, padding: '6px 6px' }}>
               <Text
                 size="xs"
                 lineClamp={1}
+                lh={1.15}
                 style={repeatResistance ? { visibility: 'hidden' } : undefined}
               >
                 {row.resistanceLabel}
               </Text>
-            </Box>
-            <Box style={{ width: setsW, flexShrink: 0, padding: '6px 4px', textAlign: 'right' }}>
-              <Text size="xs" c="dimmed" lineClamp={1}>×{row.sets}</Text>
+              <Text size="xs" c="dimmed" lineClamp={1} lh={1.15}>×{row.sets}</Text>
             </Box>
             {cols.map(rep => {
               const cellId = `${row.configId}|${row.sets}|${rep}`
               const stepNum = cellOrder.get(cellId)
               const selected = stepNum !== undefined
-              const unitLabel = quantifierType === 'reps' ? 'reps' : 's'
               const resistance = resistanceByConfig.get(row.configId) ?? 0
               const volume = (resistance || 1) * row.sets * rep
               return (
