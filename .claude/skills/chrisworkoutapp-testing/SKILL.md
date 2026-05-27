@@ -40,12 +40,70 @@ Service tests with real in-memory PGLite + real repos. Wire `new DefinitionsServ
 
 ### ui/
 
-**Deferred** until the app has more than equipment CRUD. Not a design failure — a scope decision.
+Integration tests with React Testing Library + real in-memory PGLite + real services. No service mocks. No component shallow-rendering. Same "no mocking library" rule as everywhere else.
 
-When added:
-- Playwright smoke tests for critical flows (start workout, log set).
-- No component-level unit tests with mocked services unless a specific bug warrants.
-- Field-level form validation: test the pure validator (extracted) with `fast-check`. Don't test Mantine rendering.
+- **Path:** `src/ui/features/<feature>/__tests__/<screen>.test.tsx`
+- **Setup:** `renderWithProviders(<Component />, { db })` helper wires DbProvider + QueryProvider + AppServicesProvider + MemoryRouter + MantineProvider around a fresh test DB
+- **Tools:** `vitest` (jsdom env) + `@testing-library/react` + `@testing-library/user-event` + `@testing-library/jest-dom`
+- **Why integration:** UI bugs live in wiring (service call → query invalidation → re-render). Unit-testing a component in isolation tests nothing real.
+
+Guiding frame — **the only one that matters**:
+
+> **Enumerate every user-observable behavior. Test each once at the correct level.**
+> **Every behavior a user depends on has one test that would catch its regression.**
+
+Stop thinking "how many tests." Start thinking "what behaviors exist." Test count falls out of behavior inventory.
+
+#### How to enumerate behaviors (the method)
+
+For each screen / feature, write behavior sentences in the form `when [trigger], [observable outcome]`. Put them as a comment block at top of the test file. One `it(...)` per bullet.
+
+Behavior categories to walk through per screen:
+
+1. **Happy path** — primary action works end-to-end
+2. **Empty state** — what renders w/ no data
+3. **Loading state** — async pending UI
+4. **Error state** — service throws → typed error → human msg
+5. **Validation** — invalid input rejected w/ correct message
+6. **Optimistic update** — UI reflects intent before mutation resolves (if applicable)
+7. **Mutation rollback** — failed mutation reverts UI (if applicable)
+8. **Navigation** — actions route correctly
+9. **Persistence boundary** — remount/refresh preserves state user expects preserved
+10. **Cross-screen invariant** — change on screen A reflects on screen B
+
+Not every screen needs all 10. Most need 3-6. Skip categories that don't apply; don't manufacture tests to fill a checklist.
+
+#### Test through user-visible surface
+
+- Query by role / label / text, in that order. `getByRole('button', { name: /save/i })`.
+- `data-testid` only as last resort when no semantic query exists.
+- `userEvent` (not `fireEvent`) — closer to real interaction.
+- Assert what user sees: text content, presence/absence of elements, navigation result.
+- Don't assert: which hook fired, which query key was invalidated, internal component state.
+
+#### What NOT to test in UI
+
+- Mantine render output — library job
+- TanStack Query internals — library job
+- Component shallow render w/ mocked services — mocks lie, design leaks
+- Same behavior already covered at domain/persistence/app level — pick one layer
+- Branded type identity / TS-enforced things
+- Pixel-perfect layout — that's visual regression's job (not used here yet)
+
+#### Pure validators
+
+If a form field validator has non-trivial logic, **extract it as pure fn** and test w/ `fast-check` in domain or shared. Don't test validation through Mantine `getInputProps` wiring.
+
+#### E2E (Playwright) — when to add
+
+Deferred until first behavior RTL genuinely can't cover:
+
+- Wake lock acquired on workout start
+- Service worker / install / PWA flows
+- Refresh mid-workout restores state (jsdom can fake but real browser is the proof)
+- Touch / haptic interactions
+
+Add Playwright per-flow as that need arises. Keep < 15 specs total.
 
 ### shared/
 
@@ -100,6 +158,10 @@ Orchestration correctness:
 - "References to missing entities throw typed errors."
 - **Regression tests** for any data-integrity bug previously fixed (e.g. piece ID preservation).
 
+### UI screens / features
+
+One RTL integration test per enumerated behavior (see ui/ section above). Public surface only — what user sees and does. Wire real services through `renderWithProviders`.
+
 ## What NOT to test
 
 - Trivial getters / passthrough functions.
@@ -111,9 +173,11 @@ Orchestration correctness:
 
 ## Tooling
 
-- **`vitest`** — runner, parallel by default.
+- **`vitest`** — runner, parallel by default. `jsdom` env for UI tests; node env elsewhere.
 - **`fast-check`** — property tests. Use `fc.assert(fc.property(arbitrary, predicate))`.
-- **PGLite in-memory** — `new PGlite()` with no `idb://` URL, via `makeTestDb()` for persistence + app tests.
+- **PGLite in-memory** — `new PGlite()` with no `idb://` URL, via `makeTestDb()` for persistence + app + UI tests.
+- **`@testing-library/react`** + **`@testing-library/user-event`** + **`@testing-library/jest-dom`** — UI integration tests. Query by role/label/text. `userEvent` not `fireEvent`.
+- **`renderWithProviders`** helper — wires DbProvider, QueryProvider, AppServicesProvider, MemoryRouter, MantineProvider around a fresh test DB. Lives in `src/ui/testing/`.
 - **No mocking library.** If you reach for one, stop. Either the unit under test is too entangled (split it) or the test belongs at a higher integration level (expand its scope).
 
 ## Test file conventions
@@ -140,7 +204,8 @@ This is the one situation where it's fine to write a test focused on a specific 
 
 - Domain test file: **< 50ms**.
 - Persistence/app test file (with PGLite init): **< 1s per test, < 3s per file**. PGLite init dominates (~500ms) — amortize by grouping related tests in one file when feasible.
-- Full suite target: **< 10s**.
+- UI integration test file (PGLite + render): **< 2s per test, < 8s per file**. Render + query hydration adds cost on top of PGLite init.
+- Full suite target: **< 30s** once UI tests land. If it grows beyond that, reach for parallelism / file consolidation before cutting tests.
 
 If a domain test file is slow, something is wrong: the test is doing IO, or the production code is. Investigate before papering over.
 
@@ -151,18 +216,18 @@ Listen to the friction:
 - **Hard to test without mocks** → design is leaking. Split the unit, or invert the dependency. Don't import a mocking library.
 - **Hard to test deterministically** (clock, UUID, random) → if injecting a generator adds visible ceremony to production code, accept non-determinism in tests instead. Read the generated ID out of the result, assert on shape, etc. Don't restructure production code to serve test ergonomics when the cost is real.
 - **Test needs to know layer internals** → the seam is wrong. Test through the public surface or move the test to where that surface lives.
-
-The exception: UI tests are deferred by scope choice, not by design failure. That's intentional and stays that way until the UI surface is large enough to warrant Playwright smoke tests.
+- **UI test wants to mock a service** → the component is reaching too deep, or render scope is too narrow. Render higher up and use the real service over PGLite.
 
 ## Quick checklist before writing a test
 
 1. Which layer owns the unit? Put the test in `<dir>/__tests__/`.
 2. Domain? → pure + property test. No DB, no React.
 3. Persistence/app? → `makeTestDb()`, real repos, no mocks.
-4. UI? → defer unless this is the Playwright smoke flow.
+4. UI? → `renderWithProviders` + real services + PGLite. One test per enumerated behavior. Query by role/label/text.
 5. Reaching for a mock? Stop. Reconsider the seam.
 6. Fixing a bug? Write the failing test first; name it for what broke.
 7. Property or example? Property proves; examples diagnose. Both is fine.
+8. New screen/feature? List behaviors as comment block first — one `it(...)` per bullet.
 
 ## Rule of thumb
 

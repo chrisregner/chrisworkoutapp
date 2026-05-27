@@ -162,8 +162,13 @@ These are skipped on purpose, not by accident:
   IDB databases get bootstrapped to version 0 without re-running SQL.
 - **Zod** for *shape* validation at trust boundaries (DB reads, user input,
   JSON imports). Shape only — invariants live in smart constructors.
-- **Vitest + fast-check** for testing. Real PGLite via `makeTestDb`. No
-  mocking library. See the `chrisworkoutapp-testing` skill.
+- **Vitest + fast-check** for testing across all layers. **React Testing
+  Library + user-event** for UI integration tests, rendered against real
+  in-memory PGLite + real services via a `renderWithProviders` helper. Same
+  no-mocking-library rule applies to UI: no service mocks, no shallow render.
+  UI tests enumerate user-observable behaviors and assert one per behavior
+  through the public surface (role/label/text queries). See the
+  `chrisworkoutapp-testing` skill.
 - **Docker** for the development environment.
 
 ## Working in this codebase
@@ -179,8 +184,10 @@ These are skipped on purpose, not by accident:
   is wrong or the UI is reaching past the service layer.
 - **New features start in the domain.** Model the types first. Write the smart
   constructor. Write property tests. Then add persistence and UI.
-- **Tests live next to code** (`*.test.ts`). Domain tests are fast and have no
-  setup. If a test needs a database, it belongs in `persistence/`.
+- **Tests live next to code** (`*.test.ts` / `*.test.tsx`). Domain tests are
+  fast and have no setup. Persistence/app tests use real in-memory PGLite via
+  `makeTestDb`. UI tests render real screens through real services against a
+  fresh PGLite per test — no mocked services, no shallow rendering.
 
 ## What "done" looks like for a feature
 
@@ -191,7 +198,9 @@ A feature is not done when the UI works. A feature is done when:
 3. Persistence reads and writes round-trip cleanly with re-validation on read.
 4. A service orchestrates the use case end-to-end.
 5. The UI surfaces it with mobile-first ergonomics.
-6. The README or relevant doc reflects any new architectural decision.
+6. Every user-observable behavior of the new UI surface has one RTL
+   integration test that would catch its regression.
+7. The README or relevant doc reflects any new architectural decision.
 
 Skipping steps to ship faster is a deliberate decision, not a default. Note
 the skip in a comment or TODO so the debt is visible.
