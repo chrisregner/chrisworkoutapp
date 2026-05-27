@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDefinitions } from '../../providers/AppServicesProvider'
 import type { QuantifierRule } from '../../../domain'
+import { invalidateExerciseAfterWrite } from './exerciseInvalidations'
 
 export type SaveExerciseInput = {
   name: string
@@ -28,7 +29,7 @@ export function useSaveExercise(options?: { onSuccess?: () => void }) {
       }
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['exercise'] })
+      invalidateExerciseAfterWrite(queryClient)
       options?.onSuccess?.()
     },
   })

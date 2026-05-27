@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDefinitions } from '../../providers/AppServicesProvider'
 import type { Unit } from '../../../domain'
+import { invalidateEquipmentAfterWrite } from './equipmentInvalidations'
 
 type PieceInput = { id?: string; resistance: number; quantity: number; position?: number }
 
@@ -29,7 +30,7 @@ export function useSaveEquipment(options?: { onSuccess?: () => void }) {
       }
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['equipment'] })
+      invalidateEquipmentAfterWrite(queryClient)
       options?.onSuccess?.()
     },
   })

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDefinitions } from '../../providers/AppServicesProvider'
+import { invalidateProgressionAfterDelete } from './progressionInvalidations'
 
 export function useDeleteProgression(
   exerciseId: string,
@@ -11,9 +12,7 @@ export function useDeleteProgression(
   return useMutation({
     mutationFn: (id: string) => service.deleteProgression(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ['progression', 'by-exercise', exerciseId],
-      })
+      invalidateProgressionAfterDelete(queryClient, exerciseId)
       options?.onSuccess?.()
     },
   })

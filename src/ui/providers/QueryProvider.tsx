@@ -9,6 +9,9 @@ const defaultOptions = {
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   },
+  mutations: {
+    retry: 0,
+  },
 } as const
 
 export function QueryProvider({ children }: { children: ReactNode }) {

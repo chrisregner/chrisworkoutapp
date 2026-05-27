@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDefinitions } from '../../providers/AppServicesProvider'
 import type { ProgressionBodyInput } from '../../../domain'
+import { invalidateProgressionAfterWrite } from './progressionInvalidations'
 
 export type SaveProgressionInput = {
   name: string
@@ -22,9 +23,7 @@ export function useSaveProgression(options?: { onSuccess?: () => void }) {
       }
     },
     onSuccess: (_, vars) => {
-      void queryClient.invalidateQueries({
-        queryKey: ['progression', 'by-exercise', vars.exerciseId],
-      })
+      invalidateProgressionAfterWrite(queryClient, vars.exerciseId)
       options?.onSuccess?.()
     },
   })

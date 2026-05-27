@@ -1,12 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useDefinitions } from '../../providers/AppServicesProvider'
-
-export const equipmentListQueryKey = ['equipment', 'list'] as const
+import { equipmentQueries } from './equipmentKeys'
 
 export function useEquipmentList() {
   const service = useDefinitions()
-  return useQuery({
-    queryKey: equipmentListQueryKey,
-    queryFn: () => service.listEquipment(),
-  })
+  return useQuery(equipmentQueries.list(service))
 }
