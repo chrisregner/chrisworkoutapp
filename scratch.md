@@ -1,4 +1,5 @@
 Non progression based tracking (e.g. pull up bar hold/jump rope time increasing over time)
+Disallow/handle on UI/logic when selecting a progression grid more than twice (once for heavy, once for light)
 
 ---
 
