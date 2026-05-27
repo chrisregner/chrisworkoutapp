@@ -38,12 +38,12 @@ type GridProps = {
   readOnly?: boolean
 } & (LinearProps | HeavyLightProps)
 
-type CellState =
-  | { kind: 'empty' }
-  | { kind: 'linear'; step: number }
-  | { kind: 'heavy'; step: number }
-  | { kind: 'light'; step: number }
-  | { kind: 'pending' }
+type CellRoles = {
+  heavySteps: number[]
+  lightSteps: number[]
+  linearStep: number | null
+  pending: boolean
+}
 
 function buildGridRows(
   configs: ResistanceConfig[],
@@ -85,94 +85,70 @@ function buildGridCols(repValues: number[], sortOrder: [SortEntry, SortEntry, So
   return repsEntry?.direction === 'desc' ? sorted.reverse() : sorted
 }
 
-function buildCellStates(props: GridProps): Map<string, CellState> {
-  const states = new Map<string, CellState>()
+function emptyRoles(): CellRoles {
+  return { heavySteps: [], lightSteps: [], linearStep: null, pending: false }
+}
+
+function buildCellStates(props: GridProps): Map<string, CellRoles> {
+  const states = new Map<string, CellRoles>()
+  function get(cellId: string): CellRoles {
+    if (!states.has(cellId)) states.set(cellId, emptyRoles())
+    return states.get(cellId)!
+  }
   if (props.mode === 'heavyLight') {
     props.pairs.forEach((p, i) => {
       const step = i + 1
-      states.set(p.heavy, { kind: 'heavy', step })
-      states.set(p.light, { kind: 'light', step })
+      get(p.heavy).heavySteps.push(step)
+      get(p.light).lightSteps.push(step)
     })
-    if (props.pendingHeavy && !states.has(props.pendingHeavy)) {
-      states.set(props.pendingHeavy, { kind: 'pending' })
-    }
+    if (props.pendingHeavy) get(props.pendingHeavy).pending = true
   } else {
-    const cells = props.selectedCells
-    cells.forEach((id, i) => {
-      states.set(id, { kind: 'linear', step: i + 1 })
-    })
+    props.selectedCells.forEach((id, i) => { get(id).linearStep = i + 1 })
   }
   return states
 }
 
-function backgroundFor(state: CellState): string | undefined {
-  if (state.kind === 'linear') return 'var(--mantine-color-blue-6)'
-  if (state.kind === 'heavy') return 'var(--mantine-color-red-6)'
-  if (state.kind === 'light') return 'var(--mantine-color-blue-6)'
+function backgroundFor(roles: CellRoles): string | undefined {
+  const hasHeavy = roles.heavySteps.length > 0
+  const hasLight = roles.lightSteps.length > 0
+  if (hasHeavy && hasLight) {
+    return 'linear-gradient(135deg, var(--mantine-color-red-6) 0%, var(--mantine-color-red-6) 50%, var(--mantine-color-blue-6) 50%, var(--mantine-color-blue-6) 100%)'
+  }
+  if (hasHeavy) return 'var(--mantine-color-red-6)'
+  if (hasLight || roles.linearStep !== null) return 'var(--mantine-color-blue-6)'
   return undefined
 }
 
-function ariaLabelFor(base: string, state: CellState): string {
-  if (state.kind === 'heavy') return `${base}, heavy step ${state.step}`
-  if (state.kind === 'light') return `${base}, light step ${state.step}`
-  if (state.kind === 'pending') return `${base}, pending heavy`
-  return base
+function ariaLabelFor(base: string, roles: CellRoles): string {
+  const parts = [base]
+  for (const step of roles.heavySteps) parts.push(`heavy step ${step}`)
+  for (const step of roles.lightSteps) parts.push(`light step ${step}`)
+  if (roles.pending) parts.push('pending heavy')
+  return parts.join(', ')
 }
 
-function StepBadge({ state }: { state: CellState }) {
-  if (state.kind === 'linear') {
-    return (
-      <Text
-        size="xs"
-        fw={700}
-        c="white"
-        lh={1}
-        style={{ position: 'absolute', top: 4, left: 4 }}
-      >
-        {state.step}
-      </Text>
-    )
-  }
-  if (state.kind === 'heavy') {
-    return (
-      <Text
-        size="xs"
-        fw={700}
-        c="white"
-        lh={1}
-        style={{ position: 'absolute', top: 4, left: 4 }}
-      >
-        H{state.step}
-      </Text>
-    )
-  }
-  if (state.kind === 'light') {
-    return (
-      <Text
-        size="xs"
-        fw={700}
-        c="white"
-        lh={1}
-        style={{ position: 'absolute', top: 4, left: 4 }}
-      >
-        L{state.step}
-      </Text>
-    )
-  }
-  if (state.kind === 'pending') {
-    return (
-      <Text
-        size="xs"
-        fw={700}
-        c="red"
-        lh={1}
-        style={{ position: 'absolute', top: 4, left: 4 }}
-      >
-        H?
-      </Text>
-    )
-  }
-  return null
+function StepBadge({ roles }: { roles: CellRoles }) {
+  const topLeft = roles.linearStep !== null ? (
+    <Text size="xs" fw={700} c="white" lh={1} style={{ position: 'absolute', top: 4, left: 4 }}>
+      {roles.linearStep}
+    </Text>
+  ) : roles.heavySteps.length > 0 ? (
+    <Text size="xs" fw={700} c="white" lh={1} style={{ position: 'absolute', top: 4, left: 4, whiteSpace: 'pre-line' }}>
+      {roles.heavySteps.map(s => `H${s}`).join('\n')}
+    </Text>
+  ) : roles.pending ? (
+    <Text size="xs" fw={700} c="red" lh={1} style={{ position: 'absolute', top: 4, left: 4 }}>
+      H?
+    </Text>
+  ) : null
+
+  const bottomRight = roles.lightSteps.length > 0 ? (
+    <Text size="xs" fw={700} c="white" lh={1} style={{ position: 'absolute', bottom: 4, right: 4, textAlign: 'right', whiteSpace: 'pre-line' }}>
+      {roles.lightSteps.map(s => `L${s}`).join('\n')}
+    </Text>
+  ) : null
+
+  return <>{topLeft}{bottomRight}</>
 }
 
 export function ProgressionGrid(props: GridProps) {
@@ -240,16 +216,15 @@ export function ProgressionGrid(props: GridProps) {
             </Box>
             {cols.map(rep => {
               const cellId = `${row.configId}|${row.sets}|${rep}`
-              const state = cellStates.get(cellId) ?? { kind: 'empty' as const }
-              const selected = state.kind !== 'empty'
+              const roles = cellStates.get(cellId) ?? emptyRoles()
+              const selected = roles.heavySteps.length > 0 || roles.lightSteps.length > 0 || roles.linearStep !== null || roles.pending
               const resistance = resistanceByConfig.get(row.configId) ?? 0
               const volume = (resistance || 1) * row.sets * rep
               const baseLabel = `${row.resistanceLabel}, ${row.sets} sets, ${rep} ${unitLabel}, volume ${volume}`
-              const pending = state.kind === 'pending'
               return (
                 <UnstyledButton
                   key={rep}
-                  aria-label={ariaLabelFor(baseLabel, state)}
+                  aria-label={ariaLabelFor(baseLabel, roles)}
                   aria-pressed={selected}
                   onClick={() => !readOnly && onToggleCell(cellId)}
                   style={{
@@ -260,16 +235,16 @@ export function ProgressionGrid(props: GridProps) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: backgroundFor(state),
+                    background: backgroundFor(roles),
                     borderLeft: '1px solid var(--mantine-color-default-border)',
-                    outline: pending ? '2px dashed var(--mantine-color-red-6)' : undefined,
-                    outlineOffset: pending ? -2 : undefined,
+                    outline: roles.pending ? '2px dashed var(--mantine-color-red-6)' : undefined,
+                    outlineOffset: roles.pending ? -2 : undefined,
                     borderRadius: 4,
                     cursor: readOnly ? 'default' : 'pointer',
                   }}
                 >
-                  <StepBadge state={state} />
-                  <Text size="xs" c={selected && !pending ? 'white' : 'dimmed'} lh={1}>
+                  <StepBadge roles={roles} />
+                  <Text size="xs" c={selected && !roles.pending ? 'white' : 'dimmed'} lh={1}>
                     {volume}
                   </Text>
                 </UnstyledButton>

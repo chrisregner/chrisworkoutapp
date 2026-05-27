@@ -84,11 +84,6 @@ export function useSaveProgressionForm({ opened, exercise, progression, kind: ki
   }
 
   function toggleCellHeavyLight(cellId: string) {
-    const pairIdx = pairs.findIndex(p => p.heavy === cellId || p.light === cellId)
-    if (pairIdx >= 0) {
-      setPairs(prev => prev.filter((_, i) => i !== pairIdx))
-      return
-    }
     if (pendingHeavy === cellId) {
       setPendingHeavy(null)
       return
@@ -99,6 +94,10 @@ export function useSaveProgressionForm({ opened, exercise, progression, kind: ki
     }
     setPairs(prev => [...prev, { heavy: pendingHeavy, light: cellId }])
     setPendingHeavy(null)
+  }
+
+  function removePair(stepIndex: number) {
+    setPairs(prev => prev.filter((_, i) => i !== stepIndex))
   }
 
   function toggleCell(cellId: string) {
@@ -158,6 +157,7 @@ export function useSaveProgressionForm({ opened, exercise, progression, kind: ki
     sortOrder,
     setSortOrder,
     toggleCell,
+    removePair,
     buildBody,
     canSave,
   }

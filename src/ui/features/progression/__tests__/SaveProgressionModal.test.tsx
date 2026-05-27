@@ -61,7 +61,7 @@
 // - when kind="heavyLight", picking a heavy cell then a light cell forms a
 //   step labeled H1/L1; Save persists the body as { kind: 'heavyLight', ... }
 // - re-tapping the pending heavy cell clears it
-// - re-tapping a paired cell removes that pair entirely
+// - clicking ✕ on a step list row removes that pair; other steps unaffected
 // - invariant violation (heavy.resistance <= light.resistance, or
 //   light.volume <= heavy.volume) surfaces via the typed domain error in the
 //   Alert on Save; persistence is untouched
@@ -979,7 +979,7 @@ describe('SaveProgressionModal', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('re-tapping a paired cell removes that pair entirely', async () => {
+  it('clicking ✕ on a step list row removes that pair', async () => {
     const { db, seed } = await seedFixtures()
     const { user } = await renderWithProviders(
       <ModalHarness exercise={seed.exerciseFixed} kind="heavyLight" />,
@@ -994,10 +994,10 @@ describe('SaveProgressionModal', () => {
     await user.click(await screen.findByRole('button', { name: /^16kg, 3 sets, 5 reps,/i }))
     await user.click(await screen.findByRole('button', { name: /^12kg, 3 sets, 10 reps,/i }))
 
-    // Pair committed → click heavy half again to remove the pair.
-    await user.click(
-      await screen.findByRole('button', { name: /16kg, 3 sets, 5 reps,.*heavy step 1/i }),
-    )
+    expect(await screen.findByText(/1 step selected/i)).toBeInTheDocument()
+
+    // Remove via step list ✕ button.
+    await user.click(await screen.findByRole('button', { name: /remove step 1/i }))
 
     expect(screen.queryByRole('button', { name: /heavy step 1/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /light step 1/i })).not.toBeInTheDocument()
@@ -1118,6 +1118,143 @@ describe('SaveProgressionModal', () => {
       screen.getByRole('button', { name: /5kg, 3 sets, 9 reps,.*light step 1/i }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+  })
+
+  // ── Cell reuse: same cell as heavy in one step and light in another ────────
+
+  it('opens an existing HL progression where a cell is reused across steps and shows multi-role badges', async () => {
+    const { db, seed } = await seedFixtures()
+    const piece10 = seed.equipmentCombinable.pieces.find(p => (p.resistance as number) === 10)!
+    const piece5 = seed.equipmentCombinable.pieces.find(p => (p.resistance as number) === 5)!
+    // Pair 1: heavy=10kg×3×5 (vol=150), light=5kg×3×11 (vol=165)  ✓
+    // Pair 2: heavy=15kg×3×3 (vol=135), light=10kg×3×5 (vol=150)  ✓
+    // Cell 10kg×3×5 is H1 and L2.
+    const created = await seed.service.createProgression({
+      name: 'HL Reuse',
+      exerciseId: seed.exerciseCombinable.id as string,
+      body: {
+        kind: 'heavyLight',
+        volumeSets: [
+          {
+            heavy: {
+              sets: 3, quantifierValue: 5,
+              resistanceSource: [{ piece: { pieceId: piece10.id as string, resistance: 10, totalQuantity: piece10.quantity as number }, quantityUsed: 1 }],
+            },
+            light: {
+              sets: 3, quantifierValue: 11,
+              resistanceSource: [{ piece: { pieceId: piece5.id as string, resistance: 5, totalQuantity: piece5.quantity as number }, quantityUsed: 1 }],
+            },
+          },
+          {
+            heavy: {
+              sets: 3, quantifierValue: 3,
+              resistanceSource: [
+                { piece: { pieceId: piece10.id as string, resistance: 10, totalQuantity: piece10.quantity as number }, quantityUsed: 1 },
+                { piece: { pieceId: piece5.id as string, resistance: 5, totalQuantity: piece5.quantity as number }, quantityUsed: 1 },
+              ],
+            },
+            light: {
+              sets: 3, quantifierValue: 5,
+              resistanceSource: [{ piece: { pieceId: piece10.id as string, resistance: 10, totalQuantity: piece10.quantity as number }, quantityUsed: 1 }],
+            },
+          },
+        ],
+        plannedSets: [3],
+        plannedReps: [3, 5, 11],
+      },
+    })
+
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseCombinable} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    // The 10kg×3×5 cell appears as both H1 and L2 in the grid.
+    expect(
+      await screen.findByRole('button', { name: /10kg, 3 sets, 5 reps,.*heavy step 1.*light step 2/i }),
+    ).toBeInTheDocument()
+
+    // Step list shows both steps (view mode — no remove buttons).
+    expect(await screen.findByText(/step 1/i)).toBeInTheDocument()
+    expect(screen.getByText(/step 2/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /remove step/i })).not.toBeInTheDocument()
+  })
+
+  it('authors a new HL progression where the same cell is H1 and L2; saves and round-trips', async () => {
+    const { db, seed } = await seedFixtures()
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseCombinable} kind="heavyLight" />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    await user.type(await screen.findByLabelText('Name'), 'HL Reuse Authored')
+    await addChip(user, /^sets$/i, 3)
+    await addChip(user, /^reps$/i, 3)
+    await addChip(user, /^reps$/i, 5)
+    await addChip(user, /^reps$/i, 11)
+
+    // Add configs: 5kg (1×5kg) and 10kg (1×10kg) via draft form.
+    async function addCombinableConfig(pieceLabel: string, qty: number) {
+      await user.click(await screen.findByRole('button', { name: /add configuration/i }))
+      const draftHeader = await screen.findByText(/new configuration/i)
+      const draftForm = draftHeader.closest('div') as HTMLElement
+      const pieceRow = within(draftForm).getByText(pieceLabel).closest('div')!
+      const input = within(pieceRow as HTMLElement).getByRole('textbox')
+      await user.clear(input)
+      await user.type(input, String(qty))
+      await user.click(within(draftForm).getByRole('button', { name: 'Add' }))
+    }
+
+    await addCombinableConfig('5kg', 1)  // 5kg config
+    await addCombinableConfig('10kg', 1) // 10kg config
+
+    // Also need a 15kg config (1×10kg + 1×5kg) for step 2 heavy.
+    await user.click(await screen.findByRole('button', { name: /add configuration/i }))
+    const draftHeader = await screen.findByText(/new configuration/i)
+    const draftForm = draftHeader.closest('div') as HTMLElement
+    const tenRow = within(draftForm).getByText('10kg').closest('div')!
+    await user.clear(within(tenRow as HTMLElement).getByRole('textbox'))
+    await user.type(within(tenRow as HTMLElement).getByRole('textbox'), '1')
+    const fiveRow = within(draftForm).getByText('5kg').closest('div')!
+    await user.clear(within(fiveRow as HTMLElement).getByRole('textbox'))
+    await user.type(within(fiveRow as HTMLElement).getByRole('textbox'), '1')
+    await user.click(within(draftForm).getByRole('button', { name: 'Add' }))
+
+    // Step 1: heavy=10kg×3×5, light=5kg×3×11
+    await user.click(await screen.findByRole('button', { name: /^10kg, 3 sets, 5 reps,/i }))
+    await user.click(await screen.findByRole('button', { name: /^5kg, 3 sets, 11 reps,/i }))
+
+    // Step 2: heavy=15kg×3×3, light=10kg×3×5 (same cell as H1)
+    await user.click(await screen.findByRole('button', { name: /^15kg, 3 sets, 3 reps,/i }))
+    await user.click(await screen.findByRole('button', { name: /10kg, 3 sets, 5 reps,.*heavy step 1/i }))
+
+    expect(await screen.findByText(/2 steps selected/i)).toBeInTheDocument()
+
+    // The 10kg×3×5 cell now shows both H1 and L2.
+    expect(
+      await screen.findByRole('button', { name: /10kg, 3 sets, 5 reps,.*heavy step 1.*light step 2/i }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/add heavy\/light progression/i)).not.toBeInTheDocument()
+    })
+
+    const persisted = await seed.service.listProgressionsByExercise(
+      seed.exerciseCombinable.id as string,
+    )
+    expect(persisted).toHaveLength(1)
+    const body = persisted[0]!.body
+    expect(body.kind).toBe('heavyLight')
+    if (body.kind !== 'heavyLight') throw new Error('expected heavyLight')
+    expect(body.volumeSets).toHaveLength(2)
+    // Both pairs reference the 10kg piece — step 1 heavy and step 2 light.
+    const step1HeavyPieceId = body.volumeSets[0]!.heavy.resistanceSource[0]?.piece.pieceId
+    const step2LightPieceId = body.volumeSets[1]!.light.resistanceSource[0]?.piece.pieceId
+    expect(step1HeavyPieceId).toBe(step2LightPieceId)
   })
 
   // ── Bug 1 regression: plannedSets/plannedReps survive save+reload ────────

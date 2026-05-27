@@ -16,6 +16,8 @@
 // Heavy/Light mode
 // - when given pairs, each pair's heavy cell shows H{step}, light shows L{step}
 // - when pendingHeavy is set, that cell's aria-label includes "pending heavy"
+// - when the same cell appears as heavy in one pair and light in another, both
+//   badges render (H{n} top-left, L{n} top-right) and the aria-label lists both roles
 //
 // Sort
 // - reversing the Reps sort direction reverses the order of column headers
@@ -200,6 +202,27 @@ describe('ProgressionGrid', () => {
     expect(
       screen.getByRole('button', { name: /10kg, 3 sets, 10 reps,.*light step 1/i }),
     ).toBeInTheDocument()
+  })
+
+  it('shows H{n} and L{n} badges on a cell that appears in multiple roles', () => {
+    const cfg20 = sampleConfig('cfg-20', '20kg', 20)
+    const cfg16 = sampleConfig('cfg-16', '16kg', 16)
+    const cfg10 = sampleConfig('cfg-10', '10kg', 10)
+    // cfg-16|3|8 is heavy in step 1 AND light in step 2
+    renderHlGrid({
+      configs: [cfg20, cfg16, cfg10],
+      setsValues: [3],
+      repValues: [5, 8, 10],
+      pairs: [
+        { heavy: 'cfg-16|3|8', light: 'cfg-10|3|10' },
+        { heavy: 'cfg-20|3|5', light: 'cfg-16|3|8' },
+      ],
+    })
+
+    const multiCell = screen.getByRole('button', { name: /16kg, 3 sets, 8 reps,.*heavy step 1.*light step 2/i })
+    expect(multiCell).toBeInTheDocument()
+    expect(within(multiCell).getByText('H1')).toBeInTheDocument()
+    expect(within(multiCell).getByText('L2')).toBeInTheDocument()
   })
 
   it('marks the pendingHeavy cell with a pending-heavy aria-label in heavyLight mode', () => {

@@ -1,4 +1,4 @@
-import { Alert, Button, Divider, Fieldset, Group, Modal, Stack, Text, TextInput } from '@mantine/core'
+import { ActionIcon, Alert, Button, Divider, Fieldset, Group, Modal, Stack, Text, TextInput } from '@mantine/core'
 import { useState } from 'react'
 import type { ExerciseDef, ProgressionDef } from '../../../domain'
 import { ChipList } from './ChipList'
@@ -7,7 +7,7 @@ import { ProgressionGrid } from './ProgressionGrid'
 import { ResistanceFieldset } from './ResistanceFieldset'
 import { SaveProgressionTitle } from './SaveProgressionTitle'
 import { SortPriorityControl } from './SortPriorityControl'
-import type { ProgressionKind } from './saveProgressionState'
+import { resistanceTotal, type ProgressionKind, type ResistanceConfig } from './saveProgressionState'
 import { useProgressionSortOrder } from './useProgressionSortOrder'
 import { useSaveProgression } from './useSaveProgression'
 import { useSaveProgressionForm } from './useSaveProgressionForm'
@@ -18,6 +18,26 @@ type Props = {
   exercise: ExerciseDef
   progression?: ProgressionDef
   kind?: ProgressionKind
+}
+
+function cellDisplayLabel(cellId: string, configs: ResistanceConfig[]): string {
+  const [configId, sStr, rStr] = cellId.split('|')
+  const label = configs.find(c => c.id === configId)?.label ?? '?'
+  return `${label} ×${sStr}×${rStr}`
+}
+
+function cellVolume(cellId: string, configs: ResistanceConfig[]): number {
+  const [configId, sStr, rStr] = cellId.split('|')
+  const config = configs.find(c => c.id === configId)
+  const resistance = config ? resistanceTotal(config.source) : 0
+  const sets = Number(sStr)
+  const reps = Number(rStr)
+  return (resistance || 1) * sets * reps
+}
+
+function pct(part: number, whole: number): string {
+  if (whole === 0) return '—'
+  return `${Math.round((part / whole) * 100)}%`
 }
 
 function kindLabel(kind: ProgressionKind): string {
@@ -125,7 +145,7 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression, k
         {form.kind === 'heavyLight' && (
           <Text size="xs" c="dimmed">
             Tap a cell for the heavy half, then a cell for the light half to form a step.
-            Re-tap a pending heavy or any paired cell to clear it.
+            Re-tap a pending heavy cell to cancel. Remove steps from the list below.
           </Text>
         )}
 
@@ -154,6 +174,38 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression, k
             onToggleCell={form.toggleCell}
             readOnly={readOnly}
           />
+        )}
+
+        {form.kind === 'heavyLight' && form.pairs.length > 0 && (
+          <Stack gap={4}>
+            {form.pairs.map((pair, i) => {
+              const hVol = cellVolume(pair.heavy, form.configs)
+              const lVol = cellVolume(pair.light, form.configs)
+              return (
+              <Group key={i} gap="xs" wrap="nowrap">
+                <Stack gap={0} style={{ flex: 1 }}>
+                  <Text size="xs">
+                    Step {i + 1}: H {cellDisplayLabel(pair.heavy, form.configs)} / L {cellDisplayLabel(pair.light, form.configs)}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    H vol {hVol} ({pct(hVol, lVol)}) / L vol {lVol} ({pct(lVol, hVol)})
+                  </Text>
+                </Stack>
+                {!readOnly && (
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="red"
+                    onClick={() => form.removePair(i)}
+                    aria-label={`Remove step ${i + 1}`}
+                  >
+                    ✕
+                  </ActionIcon>
+                )}
+              </Group>
+              )
+            })}
+          </Stack>
         )}
 
         {stepCount > 0 && (
