@@ -12,6 +12,8 @@
  * - when opened with an existing equipment, prefills name, unit, and piece rows
  * - when user edits and saves, persists changes via update (name reflects new value)
  * - when user edits an existing equipment, original piece ids are preserved on update
+ * - when user edits a piece's resistance and quantity, the new values persist on save
+ * - when user deletes a piece row before saving, the removed piece does NOT persist
  */
 import { describe, it, expect } from 'vitest'
 import { screen, within } from '@testing-library/react'
@@ -178,6 +180,62 @@ describe('AddEquipmentModal — edit mode', () => {
     // Same row count — update, not create
     expect(await listEquipmentDefs(db)).toHaveLength(1)
     await expect.poll(() => closed).toBe(true)
+  })
+
+  it('editing a piece\'s resistance and quantity persists the new values on save', async () => {
+    const db = await makeTestDb()
+    const existing = await seedEquipment(db)
+
+    const { user } = await renderWithProviders(
+      <AddEquipmentModal opened onClose={() => {}} equipment={existing} />,
+      { db },
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: /edit equipment/i })
+    // Edit the first piece resistance (was 12) to 14.
+    const weight = within(dialog).getByLabelText(/weight \(kg\)/i)
+    await user.clear(weight)
+    await user.type(weight, '14')
+    // Edit the first piece count (was 1) to 2.
+    const count = within(dialog).getByLabelText(/^count$/i)
+    await user.clear(count)
+    await user.type(count, '2')
+
+    await user.click(within(dialog).getByRole('button', { name: /^save$/i }))
+
+    await expect.poll(async () => {
+      const [updated] = await listEquipmentDefs(db)
+      const first = [...updated.pieces].sort((a, b) => a.position - b.position)[0]
+      return first ? `${first.resistance}/${first.quantity}` : null
+    }).toBe('14/2')
+  })
+
+  it('deleting a piece row before saving removes that piece from persistence', async () => {
+    const db = await makeTestDb()
+    const existing = await seedEquipment(db) // has pieces 12 and 16
+
+    const { user } = await renderWithProviders(
+      <AddEquipmentModal opened onClose={() => {}} equipment={existing} />,
+      { db },
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: /edit equipment/i })
+    // Two piece rows ⇒ two trash buttons. Click the last one (the 16kg row).
+    const allButtons = within(dialog).getAllByRole('button')
+    // The trash buttons are red ActionIcons; they have empty accessible names.
+    // We rely on count: two trash buttons live alongside Save + Add weight.
+    const trashButtons = allButtons.filter(b => b.querySelector('svg.tabler-icon-trash'))
+    expect(trashButtons.length).toBe(2)
+    await user.click(trashButtons[1]!)
+
+    await user.click(within(dialog).getByRole('button', { name: /^save$/i }))
+
+    await expect.poll(async () => {
+      const [updated] = await listEquipmentDefs(db)
+      return updated?.pieces.length
+    }).toBe(1)
+    const [updated] = await listEquipmentDefs(db)
+    expect(updated.pieces[0].resistance).toBe(12)
   })
 
   it('preserves original piece ids when updating', async () => {

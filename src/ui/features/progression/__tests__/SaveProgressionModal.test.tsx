@@ -30,6 +30,20 @@
 // - when the user edits the name and saves, the persisted progression is
 //   updated
 //
+// View mode load round-trip — what the user sees reflects what was saved
+// - when opened on a saved progression, sets and reps chips and the grid's
+//   numbered step cells reflect the saved volumeSets
+// - when opened on a progression for non-combinable equipment, only the
+//   saved pieces show as selected piece buttons
+// - when opened on a progression for combinable equipment, the saved
+//   resistanceSource is rendered as a config chip (no Remove control in view)
+//
+// Edit mode round-trip — changes to grid/equipment persist
+// - when editing a progression and adding a new cell, Save persists the
+//   additional volumeSet
+// - when editing a progression for non-combinable equipment, toggling on a
+//   new piece and selecting its cell persists the new resistanceSource
+//
 // Delete
 // - when the user clicks the trash icon in view mode and confirms, the
 //   progression is removed and the modal closes
@@ -450,6 +464,218 @@ describe('SaveProgressionModal', () => {
     expect(persisted).toHaveLength(1)
     expect(persisted[0]!.name).toBe('New Name')
     expect(persisted[0]!.id).toBe(created.id)
+  })
+
+  it('view mode renders sets/reps chips and selected cells as numbered steps from the saved progression', async () => {
+    const { db, seed } = await seedFixtures()
+    const created = await seed.service.createProgression({
+      name: 'Two Steps',
+      exerciseId: seed.exerciseBodyweight.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [
+          { sets: 3, quantifierValue: 5, resistanceSource: [] },
+          { sets: 3, quantifierValue: 8, resistanceSource: [] },
+        ],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    // Sets / Reps chip lists reflect the saved volumeSets.
+    const setsGroup = await screen.findByRole('group', { name: /^sets$/i })
+    expect(within(setsGroup).getByText('3')).toBeInTheDocument()
+    const repsGroup = await screen.findByRole('group', { name: /^reps$/i })
+    expect(within(repsGroup).getByText('5')).toBeInTheDocument()
+    expect(within(repsGroup).getByText('8')).toBeInTheDocument()
+
+    // Both grid cells are selected; the steps are numbered in saved order.
+    const cell5 = screen.getByRole('button', { name: /Unloaded, 3 sets, 5 reps/i })
+    expect(cell5).toHaveAttribute('aria-pressed', 'true')
+    expect(cell5).toHaveTextContent('1')
+    const cell8 = screen.getByRole('button', { name: /Unloaded, 3 sets, 8 reps/i })
+    expect(cell8).toHaveAttribute('aria-pressed', 'true')
+    expect(cell8).toHaveTextContent('2')
+  })
+
+  it('view mode shows only the saved pieces as selected for non-combinable equipment', async () => {
+    const { db, seed } = await seedFixtures()
+    const piece16 = seed.equipmentFixed.pieces.find(p => (p.resistance as number) === 16)!
+    const created = await seed.service.createProgression({
+      name: 'KB 16',
+      exerciseId: seed.exerciseFixed.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [{
+          sets: 3,
+          quantifierValue: 5,
+          resistanceSource: [{
+            piece: {
+              pieceId: piece16.id as string,
+              resistance: piece16.resistance as number,
+              totalQuantity: piece16.quantity as number,
+            },
+            quantityUsed: piece16.quantity as number,
+          }],
+        }],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseFixed} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    // In view mode, the selected piece's button is enabled; the unselected
+    // one is disabled (and not interactive).
+    const sel16 = await screen.findByRole('button', { name: '16kg' })
+    expect(sel16).not.toBeDisabled()
+    const sel12 = screen.getByRole('button', { name: '12kg' })
+    expect(sel12).toBeDisabled()
+
+    // The grid renders only the saved (16kg) row and its cell is selected.
+    const cell = screen.getByRole('button', { name: /16kg, 3 sets, 5 reps/i })
+    expect(cell).toHaveAttribute('aria-pressed', 'true')
+    expect(cell).toHaveTextContent('1')
+  })
+
+  it('view mode shows the saved resistanceSource as a config chip for combinable equipment', async () => {
+    const { db, seed } = await seedFixtures()
+    const piece5 = seed.equipmentCombinable.pieces.find(p => (p.resistance as number) === 5)!
+    const created = await seed.service.createProgression({
+      name: 'Combinable 10kg',
+      exerciseId: seed.exerciseCombinable.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [{
+          sets: 3,
+          quantifierValue: 5,
+          resistanceSource: [{
+            piece: {
+              pieceId: piece5.id as string,
+              resistance: piece5.resistance as number,
+              totalQuantity: piece5.quantity as number,
+            },
+            quantityUsed: 2,
+          }],
+        }],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseCombinable} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    // The "10kg" config chip is visible; in view mode there is no Remove
+    // control on it (readOnly hides the close action).
+    expect(await screen.findByText('10kg')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /remove 10kg/i }),
+    ).not.toBeInTheDocument()
+
+    // The cell for that config is selected as step 1.
+    const cell = screen.getByRole('button', { name: /10kg, 3 sets, 5 reps/i })
+    expect(cell).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('editing a progression: toggling a new cell on persists the additional volumeSet', async () => {
+    const { db, seed } = await seedFixtures()
+    const created = await seed.service.createProgression({
+      name: 'Grow',
+      exerciseId: seed.exerciseBodyweight.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [{ sets: 3, quantifierValue: 5, resistanceSource: [] }],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    // Add a new reps column (8) and select the (3 sets × 8 reps) cell.
+    await addChip(user, /^reps$/i, 8)
+    const newCell = await screen.findByRole('button', { name: /Unloaded, 3 sets, 8 reps/i })
+    await user.click(newCell)
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Edit Progression')).not.toBeInTheDocument()
+    })
+
+    const persisted = await seed.service.listProgressionsByExercise(
+      seed.exerciseBodyweight.id as string,
+    )
+    expect(persisted).toHaveLength(1)
+    expect(persisted[0]!.id).toBe(created.id)
+    const body = persisted[0]!.body
+    expect(body.kind).toBe('linear')
+    if (body.kind !== 'linear') throw new Error('expected linear')
+    const reps = body.volumeSets.map(v => v.quantifierValue as number).sort((a, b) => a - b)
+    expect(reps).toEqual([5, 8])
+  })
+
+  it('editing non-combinable equipment: toggling on a new piece and its cell persists the new resistanceSource', async () => {
+    const { db, seed } = await seedFixtures()
+    const piece16 = seed.equipmentFixed.pieces.find(p => (p.resistance as number) === 16)!
+    const piece12 = seed.equipmentFixed.pieces.find(p => (p.resistance as number) === 12)!
+    const created = await seed.service.createProgression({
+      name: 'KB grow',
+      exerciseId: seed.exerciseFixed.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [{
+          sets: 3,
+          quantifierValue: 5,
+          resistanceSource: [{
+            piece: {
+              pieceId: piece16.id as string,
+              resistance: piece16.resistance as number,
+              totalQuantity: piece16.quantity as number,
+            },
+            quantityUsed: piece16.quantity as number,
+          }],
+        }],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseFixed} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    // Toggle 12kg piece on → new config row appears in grid.
+    await user.click(await screen.findByRole('button', { name: '12kg' }))
+
+    // Select the (12kg × 3 sets × 5 reps) cell.
+    const newCell = await screen.findByRole('button', { name: /12kg, 3 sets, 5 reps/i })
+    await user.click(newCell)
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Edit Progression')).not.toBeInTheDocument()
+    })
+
+    const persisted = await seed.service.listProgressionsByExercise(
+      seed.exerciseFixed.id as string,
+    )
+    expect(persisted).toHaveLength(1)
+    expect(persisted[0]!.id).toBe(created.id)
+    const body = persisted[0]!.body
+    if (body.kind !== 'linear') throw new Error('expected linear')
+    const pieceIds = body.volumeSets
+      .map(v => v.resistanceSource[0]?.piece.pieceId as string)
+      .sort()
+    expect(pieceIds).toEqual([piece12.id as string, piece16.id as string].sort())
   })
 
   it('deletes the progression and closes the modal when confirmed', async () => {
