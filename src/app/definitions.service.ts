@@ -2,6 +2,7 @@ import type { Db } from '../persistence/client'
 import {
   findEquipmentDef,
   findExerciseDef,
+  findProgressionDef,
   saveEquipmentDef,
   saveExerciseDef,
   saveProgressionDef,
@@ -10,6 +11,7 @@ import {
   countExercisesUsingEquipment,
   listEquipmentDefs,
   listExerciseDefs,
+  listProgressionsByExercise,
 } from '../persistence/repositories'
 import {
   EntityNotFoundError,
@@ -151,6 +153,10 @@ export class DefinitionsService {
     await deleteExerciseDef(this.db, id)
   }
 
+  listProgressionsByExercise(exerciseId: string): Promise<ProgressionDef[]> {
+    return listProgressionsByExercise(this.db, exerciseId)
+  }
+
   async createProgression(input: {
     name: string
     exerciseId: string
@@ -161,8 +167,9 @@ export class DefinitionsService {
     if (exercise.equipment) {
       const validPieceIds = new Set(exercise.equipment.pieces.map(p => p.id as string))
       for (const entry of collectResistanceSources(input.body)) {
-        if (!validPieceIds.has(entry.piece.pieceId)) {
-          throw new EntityNotFoundError('equipmentPiece', entry.piece.pieceId)
+        const pid = entry.piece.pieceId
+        if (pid === undefined || !validPieceIds.has(pid)) {
+          throw new EntityNotFoundError('equipmentPiece', pid ?? '<missing>')
         }
       }
     }
@@ -172,6 +179,32 @@ export class DefinitionsService {
       exercise,
       body: input.body,
     })
+    await saveProgressionDef(this.db, def)
+    return def
+  }
+
+  async updateProgression(
+    id: string,
+    input: {
+      name: string
+      exerciseId: string
+      body: ProgressionBodyInput
+    },
+  ): Promise<ProgressionDef> {
+    const existing = await findProgressionDef(this.db, id)
+    if (!existing) throw new EntityNotFoundError('progression', id)
+    const exercise = await findExerciseDef(this.db, input.exerciseId)
+    if (!exercise) throw new EntityNotFoundError('exercise', input.exerciseId)
+    if (exercise.equipment) {
+      const validPieceIds = new Set(exercise.equipment.pieces.map(p => p.id as string))
+      for (const entry of collectResistanceSources(input.body)) {
+        const pid = entry.piece.pieceId
+        if (pid === undefined || !validPieceIds.has(pid)) {
+          throw new EntityNotFoundError('equipmentPiece', pid ?? '<missing>')
+        }
+      }
+    }
+    const def = makeProgressionDef({ id, name: input.name, exercise, body: input.body })
     await saveProgressionDef(this.db, def)
     return def
   }

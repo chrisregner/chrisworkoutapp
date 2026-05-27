@@ -84,9 +84,44 @@ describe('makeProgressionDef linear', () => {
     ).toThrow(/violates exercise rule/)
   })
 
-  it('rejects resistanceSource for bodyweight', () => {
-    const eq = buildEquipment()
+  it('allows empty resistanceSource when exercise has no equipment', () => {
     const ex = buildExercise(null)
+    const prog = makeProgressionDef({
+      id: u(3),
+      name: 'P',
+      exercise: ex,
+      body: {
+        kind: 'linear',
+        volumeSets: [{ sets: 3, quantifierValue: 5, resistanceSource: [] }],
+      },
+    })
+    expect(prog.body.kind).toBe('linear')
+  })
+
+  it('allows ad-hoc resistanceSource (no pieceId) when exercise has no equipment', () => {
+    const ex = buildExercise(null)
+    const prog = makeProgressionDef({
+      id: u(3),
+      name: 'P',
+      exercise: ex,
+      body: {
+        kind: 'linear',
+        volumeSets: [{
+          sets: 3,
+          quantifierValue: 5,
+          resistanceSource: [{ piece: { resistance: 10, totalQuantity: 1 }, quantityUsed: 1 }],
+        }],
+      },
+    })
+    expect(prog.body.kind).toBe('linear')
+    if (prog.body.kind === 'linear') {
+      expect(prog.body.volumeSets[0]!.resistanceSource[0]!.piece.pieceId).toBeUndefined()
+      expect(prog.body.volumeSets[0]!.resistanceSource[0]!.piece.resistance).toBe(10)
+    }
+  })
+
+  it('rejects empty resistanceSource for equipment exercise', () => {
+    const ex = buildExercise(buildEquipment())
     expect(() =>
       makeProgressionDef({
         id: u(3),
@@ -94,10 +129,10 @@ describe('makeProgressionDef linear', () => {
         exercise: ex,
         body: {
           kind: 'linear',
-          volumeSets: [{ sets: 1, quantifierValue: 5, resistanceSource: [{ piece: snap(eq, 0), quantityUsed: 1 }] }],
+          volumeSets: [{ sets: 1, quantifierValue: 5, resistanceSource: [] }],
         },
       }),
-    ).toThrow(/bodyweight/)
+    ).toThrow(/required for resistance exercise/)
   })
 
   it('rejects multiple resistanceSource when not combinable', () => {

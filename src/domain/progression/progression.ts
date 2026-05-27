@@ -3,7 +3,7 @@ import type { ExerciseDef } from '../exercise'
 import { ruleAccepts } from '../exercise'
 
 export type EquipmentPieceSnapshot = {
-  readonly pieceId: Uuid
+  readonly pieceId?: Uuid
   readonly resistance: PositiveNumber
   readonly totalQuantity: PositiveInt
 }
@@ -45,7 +45,7 @@ export function volumeOf(vs: VolumeSet): number {
 export type VolumeSetInput = {
   sets: number
   quantifierValue: number
-  resistanceSource: { piece: { pieceId: string; resistance: number; totalQuantity: number }; quantityUsed: number }[]
+  resistanceSource: { piece: { pieceId?: string; resistance: number; totalQuantity: number }; quantityUsed: number }[]
 }
 
 export type ProgressionBodyInput =
@@ -69,27 +69,22 @@ function makeVolumeSet(input: VolumeSetInput, exercise: ExerciseDef, path: strin
     )
   }
 
-  if (!exercise.equipment) {
-    if (input.resistanceSource.length > 0) {
+  // Exercises without an equipment def may carry ad-hoc resistance entries:
+  // such entries have no parent piece, so pieceId is omitted. The snapshot is
+  // fully self-contained.
+  if (exercise.equipment) {
+    if (input.resistanceSource.length === 0) {
       throw new InvariantViolationError(
         `${path}.resistanceSource`,
-        'must be empty for bodyweight exercise',
+        'required for resistance exercise',
       )
     }
-    return { sets, quantifierValue, resistanceSource: [] }
-  }
-
-  if (input.resistanceSource.length === 0) {
-    throw new InvariantViolationError(
-      `${path}.resistanceSource`,
-      'required for resistance exercise',
-    )
-  }
-  if (input.resistanceSource.length > 1 && !exercise.equipment.isCombinable) {
-    throw new InvariantViolationError(
-      `${path}.resistanceSource`,
-      'multiple entries require combinable equipment',
-    )
+    if (input.resistanceSource.length > 1 && !exercise.equipment.isCombinable) {
+      throw new InvariantViolationError(
+        `${path}.resistanceSource`,
+        'multiple entries require combinable equipment',
+      )
+    }
   }
 
   // Historical snapshot semantics: the snapshot is an immutable record of what
@@ -107,7 +102,7 @@ function makeVolumeSet(input: VolumeSetInput, exercise: ExerciseDef, path: strin
     }
     return {
       piece: {
-        pieceId: uuidOf(rs.piece.pieceId),
+        ...(rs.piece.pieceId !== undefined ? { pieceId: uuidOf(rs.piece.pieceId) } : {}),
         resistance: positiveNumber(rs.piece.resistance),
         totalQuantity,
       },

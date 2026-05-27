@@ -7,6 +7,14 @@ import { progressionDefToRow, rowToProgressionDef } from './mappers'
 import { progressionDefRowSchema } from './validators'
 import { findExerciseDef } from './exercise.repo'
 
+export async function listProgressionsByExercise(db: Db, exerciseId: string): Promise<ProgressionDef[]> {
+  const rows = await db.select().from(progressionDefs).where(eq(progressionDefs.exerciseId, exerciseId))
+  if (rows.length === 0) return []
+  const exercise = await findExerciseDef(db, exerciseId)
+  if (!exercise) throw new EntityNotFoundError('exercise', exerciseId)
+  return rows.map(row => rowToProgressionDef(progressionDefRowSchema.parse(row), exercise))
+}
+
 export async function findProgressionDef(db: Db, id: string): Promise<ProgressionDef | null> {
   const rows = await db.select().from(progressionDefs).where(eq(progressionDefs.id, id)).limit(1)
   if (rows.length === 0) return null

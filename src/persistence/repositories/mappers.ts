@@ -128,7 +128,7 @@ function volumeSetToPersisted(vs: VolumeSet) {
     quantifierValue: unbrandNumber(vs.quantifierValue),
     resistanceSource: vs.resistanceSource.map(rs => ({
       piece: {
-        pieceId: unbrandUuid(rs.piece.pieceId),
+        ...(rs.piece.pieceId !== undefined ? { pieceId: unbrandUuid(rs.piece.pieceId) } : {}),
         resistance: unbrandNumber(rs.piece.resistance),
         totalQuantity: unbrandNumber(rs.piece.totalQuantity),
       },

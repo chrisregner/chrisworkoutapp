@@ -56,10 +56,12 @@ export const exerciseDefs = pgTable('exercise_defs', {
 
 /**
  * Snapshot of an equipment piece embedded inside a VolumeSet body.
- * Carries pieceId for identity; resistance/totalQuantity captured for historical value.
+ * pieceId is optional lineage metadata — absent for ad-hoc resistance entries
+ * (e.g. weighted bodyweight) that have no parent piece. resistance/totalQuantity
+ * are always present and authoritative.
  */
 export type EquipmentPieceSnapshotPersisted = {
-  pieceId: string
+  pieceId?: string
   resistance: number
   totalQuantity: number
 }

@@ -25,7 +25,7 @@ export const quantifierRuleSchema = z.discriminatedUnion('kind', [
 ])
 
 export const pieceSnapshotSchema = z.object({
-  pieceId: z.uuid(),
+  pieceId: z.uuid().optional(),
   resistance: z.number(),
   totalQuantity: z.number(),
 })
