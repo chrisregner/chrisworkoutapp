@@ -3,7 +3,7 @@ import {
   resistanceTotal,
   type HeavyLightPair,
   type ResistanceConfig,
-  type SortDimension,
+  type SortColumn,
   type SortEntry,
 } from './saveProgressionState'
 
@@ -60,18 +60,18 @@ function buildGridRows(
   const resistanceByConfigId = new Map<string, number>()
   for (const c of configs) resistanceByConfigId.set(c.id, resistanceTotal(c.source))
 
-  function dimValue(row: GridRow, dim: SortDimension): number {
-    if (dim === 'Resistance') return resistanceByConfigId.get(row.configId) ?? 0
-    if (dim === 'Sets') return row.sets
+  function dimValue(row: GridRow, column: SortColumn): number {
+    if (column === 'resistance') return resistanceByConfigId.get(row.configId) ?? 0
+    if (column === 'sets') return row.sets
     return 0
   }
 
   rows.sort((a, b) => {
     for (const entry of sortOrder) {
-      if (entry.dim === 'Reps') continue
-      const va = dimValue(a, entry.dim)
-      const vb = dimValue(b, entry.dim)
-      if (va !== vb) return entry.dir === 'asc' ? va - vb : vb - va
+      if (entry.column === 'reps') continue
+      const va = dimValue(a, entry.column)
+      const vb = dimValue(b, entry.column)
+      if (va !== vb) return entry.direction === 'asc' ? va - vb : vb - va
     }
     return 0
   })
@@ -80,9 +80,9 @@ function buildGridRows(
 }
 
 function buildGridCols(repValues: number[], sortOrder: [SortEntry, SortEntry, SortEntry]): number[] {
-  const repsEntry = sortOrder.find(e => e.dim === 'Reps')
+  const repsEntry = sortOrder.find(e => e.column === 'reps')
   const sorted = repValues.slice().sort((a, b) => a - b)
-  return repsEntry?.dir === 'desc' ? sorted.reverse() : sorted
+  return repsEntry?.direction === 'desc' ? sorted.reverse() : sorted
 }
 
 function buildCellStates(props: GridProps): Map<string, CellState> {

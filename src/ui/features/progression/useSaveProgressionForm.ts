@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { ruleAccepts } from '../../../domain'
 import type { ExerciseDef, ProgressionBodyInput, ProgressionDef, VolumeSetInput } from '../../../domain'
 import {
   buildInitialState,
@@ -107,15 +106,6 @@ export function useSaveProgressionForm({ opened, exercise, progression, kind: ki
     else toggleCellHeavyLight(cellId)
   }
 
-  function repValidate(v: number): string | null {
-    if (!ruleAccepts(exercise.quantifierRule, v)) {
-      const rule = exercise.quantifierRule
-      if (rule.kind === 'min-max') return `Must be between ${rule.min} and ${rule.max}`
-      return `Must be one of: ${rule.values.join(', ')}`
-    }
-    return null
-  }
-
   function volumeSetFromCell(
     cellId: string,
     configMap: Map<string, ResistanceConfig>,
@@ -131,6 +121,8 @@ export function useSaveProgressionForm({ opened, exercise, progression, kind: ki
       return {
         kind: 'linear',
         volumeSets: selectedCells.map(cellId => volumeSetFromCell(cellId, configMap)),
+        plannedSets: setsValues,
+        plannedReps: repValues,
       }
     }
     return {
@@ -139,6 +131,8 @@ export function useSaveProgressionForm({ opened, exercise, progression, kind: ki
         heavy: volumeSetFromCell(p.heavy, configMap),
         light: volumeSetFromCell(p.light, configMap),
       })),
+      plannedSets: setsValues,
+      plannedReps: repValues,
     }
   }
 
@@ -164,7 +158,6 @@ export function useSaveProgressionForm({ opened, exercise, progression, kind: ki
     sortOrder,
     setSortOrder,
     toggleCell,
-    repValidate,
     buildBody,
     canSave,
   }

@@ -37,16 +37,11 @@ export const equipmentPieces = pgTable(
   ],
 )
 
-export type QuantifierRulePersisted =
-  | { kind: 'min-max'; min: number; max: number }
-  | { kind: 'allowed-values'; values: number[] }
-
 export const exerciseDefs = pgTable('exercise_defs', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   description: text('description'),
   quantifierType: text('quantifier_type', { enum: ['reps', 'seconds'] }).notNull(),
-  quantifierRule: jsonb('quantifier_rule').$type<QuantifierRulePersisted>().notNull(),
   resistanceEquipmentId: uuid('resistance_equipment_id').references(() => equipmentDefs.id, {
     onDelete: 'restrict',
   }),
@@ -73,8 +68,23 @@ export type VolumeSetPersisted = {
 }
 
 export type ProgressionBodyPersisted =
-  | { kind: 'linear'; volumeSets: VolumeSetPersisted[] }
-  | { kind: 'heavyLight'; volumeSets: { heavy: VolumeSetPersisted; light: VolumeSetPersisted }[] }
+  | {
+      kind: 'linear'
+      volumeSets: VolumeSetPersisted[]
+      plannedSets: number[]
+      plannedReps: number[]
+    }
+  | {
+      kind: 'heavyLight'
+      volumeSets: { heavy: VolumeSetPersisted; light: VolumeSetPersisted }[]
+      plannedSets: number[]
+      plannedReps: number[]
+    }
+
+/** Presentation-only: sort order applied to a progression's grid view. */
+export type SortColumn = 'resistance' | 'sets' | 'reps'
+export type SortDirection = 'asc' | 'desc'
+export type SortOrderPersisted = readonly { column: SortColumn; direction: SortDirection }[]
 
 export const progressionDefs = pgTable(
   'progression_defs',
@@ -93,6 +103,18 @@ export const progressionDefs = pgTable(
   ],
 )
 
+/**
+ * Per-progression presentation state. Lives outside the domain — sort order
+ * is UI/UX concern, not part of the progression's identity or invariants.
+ * Cascade-deleted when the underlying progression is removed.
+ */
+export const progressionViewState = pgTable('progression_view_state', {
+  progressionDefId: uuid('progression_def_id')
+    .primaryKey()
+    .references(() => progressionDefs.id, { onDelete: 'cascade' }),
+  sortOrder: jsonb('sort_order').$type<SortOrderPersisted>().notNull(),
+})
+
 export type EquipmentDefRow = typeof equipmentDefs.$inferSelect
 export type NewEquipmentDefRow = typeof equipmentDefs.$inferInsert
 export type EquipmentPieceRow = typeof equipmentPieces.$inferSelect
@@ -101,3 +123,5 @@ export type ExerciseDefRow = typeof exerciseDefs.$inferSelect
 export type NewExerciseDefRow = typeof exerciseDefs.$inferInsert
 export type ProgressionDefRow = typeof progressionDefs.$inferSelect
 export type NewProgressionDefRow = typeof progressionDefs.$inferInsert
+export type ProgressionViewStateRow = typeof progressionViewState.$inferSelect
+export type NewProgressionViewStateRow = typeof progressionViewState.$inferInsert

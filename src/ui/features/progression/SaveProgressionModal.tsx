@@ -8,6 +8,7 @@ import { ResistanceFieldset } from './ResistanceFieldset'
 import { SaveProgressionTitle } from './SaveProgressionTitle'
 import { SortPriorityControl } from './SortPriorityControl'
 import type { ProgressionKind } from './saveProgressionState'
+import { useProgressionSortOrder } from './useProgressionSortOrder'
 import { useSaveProgression } from './useSaveProgression'
 import { useSaveProgressionForm } from './useSaveProgressionForm'
 
@@ -28,6 +29,13 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression, k
   const { mutate, isPending, error } = useSaveProgression({ onSuccess: onClose })
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
+  // View-state (sort order) lives in a separate table; only saved progressions
+  // can persist a sort. For unsaved progressions we fall back to the form's
+  // local sortOrder state which is initialized to DEFAULT_SORT.
+  const persistedSort = useProgressionSortOrder(progression ? (progression.id as string) : null)
+  const sortOrder = progression ? persistedSort.sortOrder : form.sortOrder
+  const setSortOrder = progression ? persistedSort.setSortOrder : form.setSortOrder
+
   const readOnly = form.mode === 'view'
 
   function handleSubmit() {
@@ -37,6 +45,10 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression, k
       exerciseId: exercise.id as string,
       body: form.buildBody(),
       progressionId: progression ? progression.id as string : undefined,
+      // Sort order chosen during create is forwarded to the service so it lands
+      // in progression_view_state atomically with the progression itself.
+      // Updates manage sort separately via useProgressionSortOrder.
+      initialSortOrder: progression ? undefined : form.sortOrder,
     })
   }
 
@@ -93,7 +105,6 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression, k
             inputMin={1}
             inputStep={1}
             placeholder="e.g. 5"
-            validate={form.repValidate}
             readOnly={readOnly}
           />
         </Fieldset>
@@ -106,7 +117,7 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression, k
         />
 
         <Fieldset legend="Row / column sort priority">
-          <SortPriorityControl sortOrder={form.sortOrder} onChange={form.setSortOrder} readOnly={readOnly} />
+          <SortPriorityControl sortOrder={sortOrder} onChange={setSortOrder} readOnly={readOnly} />
         </Fieldset>
 
         <Divider label="Progression grid" labelPosition="left" />
@@ -124,7 +135,7 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression, k
             configs={form.configs}
             setsValues={form.setsValues}
             repValues={form.repValues}
-            sortOrder={form.sortOrder}
+            sortOrder={sortOrder}
             selectedCells={form.selectedCells}
             quantifierType={exercise.quantifierType}
             onToggleCell={form.toggleCell}
@@ -136,7 +147,7 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression, k
             configs={form.configs}
             setsValues={form.setsValues}
             repValues={form.repValues}
-            sortOrder={form.sortOrder}
+            sortOrder={sortOrder}
             pairs={form.pairs}
             pendingHeavy={form.pendingHeavy}
             quantifierType={exercise.quantifierType}

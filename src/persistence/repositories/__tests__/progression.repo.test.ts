@@ -9,7 +9,6 @@ import {
   makeEquipmentDef,
   makeExerciseDef,
   makeProgressionDef,
-  makeQuantifierRule,
   type EquipmentDef,
   type ExerciseDef,
 } from '../../../domain'
@@ -34,7 +33,6 @@ function buildExercise(eq: EquipmentDef): ExerciseDef {
     id: newId(),
     name: 'Squat',
     quantifierType: 'reps',
-    quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 1, max: 20 }),
     equipment: eq,
     shouldCombineResistance: true,
   })
@@ -71,6 +69,8 @@ describe('progression.repo', () => {
             resistanceSource: [{ piece: snap(equipment, 2), quantityUsed: 2 }],
           },
         ],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     await saveProgressionDef(db, prog)
@@ -115,6 +115,8 @@ describe('progression.repo', () => {
             },
           },
         ],
+        plannedSets: [3, 5],
+        plannedReps: [3, 8],
       },
     })
     await saveProgressionDef(db, prog)
@@ -152,17 +154,81 @@ describe('progression.repo', () => {
             resistanceSource: [{ piece: snap(equipment, 0), quantityUsed: 1 }],
           },
         ],
+        plannedSets: [1],
+        plannedReps: [5],
       },
     })
     await saveProgressionDef(db, prog)
 
-    // Hard-delete the exercise. The progression FK is ON DELETE CASCADE, which
-    // would also wipe the progression — bypass FK enforcement so the
-    // progression row remains while its exercise reference dangles.
     await db.execute(sql`SET session_replication_role = 'replica'`)
     await db.execute(sql`DELETE FROM exercise_defs WHERE id = ${exercise.id}`)
     await db.execute(sql`SET session_replication_role = 'origin'`)
 
     await expect(findProgressionDef(db, prog.id)).rejects.toBeInstanceOf(EntityNotFoundError)
+  })
+
+  it('round-trips plannedSets/plannedReps wider than the values in any volumeSet', async () => {
+    const db = await makeTestDb()
+    const { equipment, exercise } = await persistGraph(db)
+
+    const prog = makeProgressionDef({
+      id: newId(),
+      name: 'Linear w/ planned headroom',
+      exercise,
+      body: {
+        kind: 'linear',
+        volumeSets: [
+          {
+            sets: 3,
+            quantifierValue: 5,
+            resistanceSource: [{ piece: snap(equipment, 1), quantityUsed: 1 }],
+          },
+        ],
+        plannedSets: [3, 4, 5],
+        plannedReps: [5, 8, 10, 12],
+      },
+    })
+    await saveProgressionDef(db, prog)
+
+    const found = await findProgressionDef(db, prog.id)
+    expect(found).not.toBeNull()
+    expect(found!.body.plannedSets.map(n => n as number)).toEqual([3, 4, 5])
+    expect(found!.body.plannedReps.map(n => n as number)).toEqual([5, 8, 10, 12])
+  })
+
+  it('round-trips plannedSets/plannedReps for heavyLight', async () => {
+    const db = await makeTestDb()
+    const { equipment, exercise } = await persistGraph(db)
+
+    const prog = makeProgressionDef({
+      id: newId(),
+      name: 'HL planned',
+      exercise,
+      body: {
+        kind: 'heavyLight',
+        volumeSets: [
+          {
+            heavy: {
+              sets: 3,
+              quantifierValue: 3,
+              resistanceSource: [{ piece: snap(equipment, 2), quantityUsed: 4 }],
+            },
+            light: {
+              sets: 5,
+              quantifierValue: 8,
+              resistanceSource: [{ piece: snap(equipment, 2), quantityUsed: 2 }],
+            },
+          },
+        ],
+        plannedSets: [3, 5, 7],
+        plannedReps: [3, 5, 8, 12],
+      },
+    })
+    await saveProgressionDef(db, prog)
+
+    const found = await findProgressionDef(db, prog.id)
+    expect(found).not.toBeNull()
+    expect(found!.body.plannedSets.map(n => n as number)).toEqual([3, 5, 7])
+    expect(found!.body.plannedReps.map(n => n as number)).toEqual([3, 5, 8, 12])
   })
 })

@@ -42,9 +42,9 @@ type LinearGridProps = {
 
 function renderGrid(props: LinearGridProps = {}) {
   const defaultSort: [SortEntry, SortEntry, SortEntry] = [
-    { dim: 'Resistance', dir: 'asc' },
-    { dim: 'Sets', dir: 'asc' },
-    { dim: 'Reps', dir: 'asc' },
+    { column: 'resistance', direction: 'asc' },
+    { column: 'sets', direction: 'asc' },
+    { column: 'reps', direction: 'asc' },
   ]
   const onToggleCell = props.onToggleCell ?? vi.fn()
   const result = render(
@@ -79,9 +79,9 @@ type HlGridProps = {
 
 function renderHlGrid(props: HlGridProps = {}) {
   const defaultSort: [SortEntry, SortEntry, SortEntry] = [
-    { dim: 'Resistance', dir: 'asc' },
-    { dim: 'Sets', dir: 'asc' },
-    { dim: 'Reps', dir: 'asc' },
+    { column: 'resistance', direction: 'asc' },
+    { column: 'sets', direction: 'asc' },
+    { column: 'reps', direction: 'asc' },
   ]
   const onToggleCell = props.onToggleCell ?? vi.fn()
   const result = render(
@@ -220,9 +220,9 @@ describe('ProgressionGrid', () => {
   it('reverses column header order when Reps sort direction is desc', () => {
     const configA = sampleConfig('cfg-a', '10kg', 10)
     const sort: [SortEntry, SortEntry, SortEntry] = [
-      { dim: 'Resistance', dir: 'asc' },
-      { dim: 'Sets', dir: 'asc' },
-      { dim: 'Reps', dir: 'desc' },
+      { column: 'resistance', direction: 'asc' },
+      { column: 'sets', direction: 'asc' },
+      { column: 'reps', direction: 'desc' },
     ]
     renderGrid({
       configs: [configA],

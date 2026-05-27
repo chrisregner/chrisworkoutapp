@@ -8,6 +8,34 @@
       "when": 1779827861250,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779827861251,
+      "tag": "0001_rename_progression_body_quantities",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779899906767,
+      "tag": "0002_view_state_and_planned_axes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779901653626,
+      "tag": "0003_remarkable_cammi",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780000000000,
+      "tag": "0004_drop_quantifier_rule_and_selected_pieces",
+      "breakpoints": true
     }
   ]
 }

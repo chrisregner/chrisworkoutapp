@@ -1,6 +1,5 @@
 import { InvariantViolationError, type PositiveInt, type PositiveNumber, type Uuid, positiveInt, positiveNumber, uuidOf } from '../primitives'
 import type { ExerciseDef } from '../exercise'
-import { ruleAccepts } from '../exercise'
 
 export type EquipmentPieceSnapshot = {
   readonly pieceId?: Uuid
@@ -20,10 +19,17 @@ export type VolumeSet = {
 }
 
 export type ProgressionBody =
-  | { kind: 'linear'; volumeSets: readonly VolumeSet[] }
+  | {
+      kind: 'linear'
+      volumeSets: readonly VolumeSet[]
+      plannedSets: readonly PositiveInt[]
+      plannedReps: readonly PositiveInt[]
+    }
   | {
       kind: 'heavyLight'
       volumeSets: readonly { heavy: VolumeSet; light: VolumeSet }[]
+      plannedSets: readonly PositiveInt[]
+      plannedReps: readonly PositiveInt[]
     }
 
 export type ProgressionDef = {
@@ -49,8 +55,25 @@ export type VolumeSetInput = {
 }
 
 export type ProgressionBodyInput =
-  | { kind: 'linear'; volumeSets: VolumeSetInput[] }
-  | { kind: 'heavyLight'; volumeSets: { heavy: VolumeSetInput; light: VolumeSetInput }[] }
+  | {
+      kind: 'linear'
+      volumeSets: VolumeSetInput[]
+      /**
+       * Required. Catalog of every "sets count" the user wants to consider for
+       * this progression. Must be a superset of the `sets` values across the
+       * `volumeSets`. Permissive input: any order, duplicates collapsed
+       * silently. Non-positive values throw.
+       */
+      plannedSets: number[]
+      /** Required. Catalog of every "reps count" (quantifierValue axis). */
+      plannedReps: number[]
+    }
+  | {
+      kind: 'heavyLight'
+      volumeSets: { heavy: VolumeSetInput; light: VolumeSetInput }[]
+      plannedSets: number[]
+      plannedReps: number[]
+    }
 
 export type ProgressionDefInput = {
   id: string
@@ -62,16 +85,7 @@ export type ProgressionDefInput = {
 function makeVolumeSet(input: VolumeSetInput, exercise: ExerciseDef, path: string): VolumeSet {
   const sets = positiveInt(input.sets)
   const quantifierValue = positiveInt(input.quantifierValue)
-  if (!ruleAccepts(exercise.quantifierRule, quantifierValue)) {
-    throw new InvariantViolationError(
-      `${path}.quantifierValue`,
-      `${quantifierValue} violates exercise rule`,
-    )
-  }
 
-  // Exercises without an equipment def may carry ad-hoc resistance entries:
-  // such entries have no parent piece, so pieceId is omitted. The snapshot is
-  // fully self-contained.
   if (exercise.equipment) {
     if (input.resistanceSource.length === 0) {
       throw new InvariantViolationError(
@@ -113,12 +127,67 @@ function makeVolumeSet(input: VolumeSetInput, exercise: ExerciseDef, path: strin
   return { sets, quantifierValue, resistanceSource }
 }
 
+/**
+ * Validate, dedupe, and sort a planned-axis input array. Permissive: any
+ * input order is accepted, duplicates are silently collapsed. Non-positive
+ * values throw via `positiveInt`. An empty (post-dedupe) result throws.
+ */
+function normalizePlannedAxis(values: number[], path: string): PositiveInt[] {
+  const branded = values.map(v => positiveInt(v))
+  const deduped = Array.from(new Set(branded)) as PositiveInt[]
+  if (deduped.length === 0) {
+    throw new InvariantViolationError(path, 'must be non-empty after dedupe')
+  }
+  return deduped.sort((a, b) => (a as number) - (b as number)) as PositiveInt[]
+}
+
+function* iterateInputVolumeSets(body: ProgressionBodyInput): Generator<{ vs: VolumeSetInput; path: string }> {
+  if (body.kind === 'linear') {
+    for (let i = 0; i < body.volumeSets.length; i++) {
+      yield { vs: body.volumeSets[i]!, path: `volumeSets[${i}]` }
+    }
+  } else {
+    for (let i = 0; i < body.volumeSets.length; i++) {
+      yield { vs: body.volumeSets[i]!.heavy, path: `volumeSets[${i}].heavy` }
+      yield { vs: body.volumeSets[i]!.light, path: `volumeSets[${i}].light` }
+    }
+  }
+}
+
 export function makeProgressionDef(input: ProgressionDefInput): ProgressionDef {
   if (!input.name.trim()) {
     throw new InvariantViolationError('progressionDef.name', 'name must be non-empty')
   }
   if (input.body.volumeSets.length === 0) {
     throw new InvariantViolationError('progressionDef.body.volumeSets', 'must be non-empty')
+  }
+
+  const plannedSets = normalizePlannedAxis(
+    input.body.plannedSets,
+    'progressionDef.body.plannedSets',
+  )
+  const plannedReps = normalizePlannedAxis(
+    input.body.plannedReps,
+    'progressionDef.body.plannedReps',
+  )
+
+  // Superset invariant: every sets/reps value that appears in any volumeSet
+  // MUST also appear in the planned arrays.
+  const plannedSetsSet = new Set(plannedSets as readonly number[])
+  const plannedRepsSet = new Set(plannedReps as readonly number[])
+  for (const { vs, path } of iterateInputVolumeSets(input.body)) {
+    if (!plannedSetsSet.has(vs.sets)) {
+      throw new InvariantViolationError(
+        `${path}.sets`,
+        `${vs.sets} not in plannedSets [${[...plannedSetsSet].join(',')}]`,
+      )
+    }
+    if (!plannedRepsSet.has(vs.quantifierValue)) {
+      throw new InvariantViolationError(
+        `${path}.quantifierValue`,
+        `${vs.quantifierValue} not in plannedReps [${[...plannedRepsSet].join(',')}]`,
+      )
+    }
   }
 
   let body: ProgressionBody
@@ -128,6 +197,8 @@ export function makeProgressionDef(input: ProgressionDefInput): ProgressionDef {
       volumeSets: input.body.volumeSets.map((vs, i) =>
         makeVolumeSet(vs, input.exercise, `volumeSets[${i}]`),
       ),
+      plannedSets,
+      plannedReps,
     }
   } else {
     body = {
@@ -149,6 +220,8 @@ export function makeProgressionDef(input: ProgressionDefInput): ProgressionDef {
         }
         return { heavy, light }
       }),
+      plannedSets,
+      plannedReps,
     }
   }
 

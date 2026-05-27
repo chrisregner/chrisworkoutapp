@@ -7,9 +7,6 @@
 //
 // Validation / blocked save
 // - when name is empty or no cells are selected, the Save button is disabled
-// - when the user adds a reps value outside the exercise's quantifier rule,
-//   the input shows an error and the chip is not added
-//
 // Happy path (linear — the modal only builds linear progressions)
 // - when the user fills name, sets, reps, picks a no-equipment resistance and
 //   selects a cell, Save persists the progression and the modal closes
@@ -83,7 +80,6 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { renderWithProviders } from '../../../testing/renderWithProviders'
 import { SaveProgressionModal } from '../SaveProgressionModal'
 import { DefinitionsService } from '../../../../app'
-import { makeQuantifierRule } from '../../../../domain'
 import type { EquipmentDef, ExerciseDef, ProgressionDef } from '../../../../domain'
 import { makeTestDb } from '../../../../persistence/testing'
 
@@ -177,19 +173,16 @@ async function seedFixtures(): Promise<{ db: Awaited<ReturnType<typeof makeTestD
   const exerciseBodyweight = await service.createExercise({
     name: 'Pushup',
     quantifierType: 'reps',
-    quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 1, max: 20 }),
     equipmentId: null,
   })
   const exerciseFixed = await service.createExercise({
     name: 'KB Swing',
     quantifierType: 'reps',
-    quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 1, max: 20 }),
     equipmentId: equipmentFixed.id as string,
   })
   const exerciseCombinable = await service.createExercise({
     name: 'Squat',
     quantifierType: 'reps',
-    quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 1, max: 20 }),
     equipmentId: equipmentCombinable.id as string,
     shouldCombineResistance: true,
   })
@@ -257,25 +250,6 @@ describe('SaveProgressionModal', () => {
     // Even after typing a name, no cells → still disabled.
     await user.type(screen.getByLabelText('Name'), 'Linear A')
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-  })
-
-  it('rejects a reps value outside the exercise rule with an inline error', async () => {
-    const { db, seed } = await seedFixtures()
-    const { user } = await renderWithProviders(
-      <ModalHarness exercise={seed.exerciseBodyweight} />,
-      { db },
-    )
-    await user.click(screen.getByRole('button', { name: 'Open' }))
-
-    // Exercise rule is min-max 1..20; 99 violates.
-    await addChip(user, /^reps$/i, 99)
-
-    expect(
-      await screen.findByText(/must be between 1 and 20/i),
-    ).toBeInTheDocument()
-    // The chip should NOT be present in the Reps group.
-    const repsGroup = await screen.findByRole('group', { name: /^reps$/i })
-    expect(within(repsGroup).queryByText('99')).not.toBeInTheDocument()
   })
 
   it('saves a new bodyweight + ad-hoc resistance progression and closes the modal', async () => {
@@ -421,6 +395,8 @@ describe('SaveProgressionModal', () => {
         volumeSets: [
           { sets: 3, quantifierValue: 5, resistanceSource: [] },
         ],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -448,6 +424,8 @@ describe('SaveProgressionModal', () => {
         volumeSets: [
           { sets: 3, quantifierValue: 5, resistanceSource: [] },
         ],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -481,6 +459,8 @@ describe('SaveProgressionModal', () => {
         volumeSets: [
           { sets: 3, quantifierValue: 5, resistanceSource: [] },
         ],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -522,6 +502,8 @@ describe('SaveProgressionModal', () => {
         volumeSets: [
           { sets: 3, quantifierValue: 5, resistanceSource: [] },
         ],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -561,6 +543,8 @@ describe('SaveProgressionModal', () => {
           { sets: 3, quantifierValue: 5, resistanceSource: [] },
           { sets: 3, quantifierValue: 8, resistanceSource: [] },
         ],
+        plannedSets: [3],
+        plannedReps: [5, 8],
       },
     })
     const { user } = await renderWithProviders(
@@ -605,6 +589,8 @@ describe('SaveProgressionModal', () => {
             quantityUsed: piece16.quantity as number,
           }],
         }],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -652,6 +638,8 @@ describe('SaveProgressionModal', () => {
             quantityUsed: piece16.quantity as number,
           }],
         }],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -685,6 +673,8 @@ describe('SaveProgressionModal', () => {
             quantityUsed: 2,
           }],
         }],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -713,6 +703,8 @@ describe('SaveProgressionModal', () => {
       body: {
         kind: 'linear',
         volumeSets: [{ sets: 3, quantifierValue: 5, resistanceSource: [] }],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -766,6 +758,8 @@ describe('SaveProgressionModal', () => {
             quantityUsed: piece16.quantity as number,
           }],
         }],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -811,6 +805,8 @@ describe('SaveProgressionModal', () => {
         volumeSets: [
           { sets: 3, quantifierValue: 5, resistanceSource: [] },
         ],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -845,6 +841,8 @@ describe('SaveProgressionModal', () => {
         volumeSets: [
           { sets: 3, quantifierValue: 5, resistanceSource: [] },
         ],
+        plannedSets: [3],
+        plannedReps: [5],
       },
     })
     const { user } = await renderWithProviders(
@@ -1102,6 +1100,8 @@ describe('SaveProgressionModal', () => {
             }],
           },
         }],
+        plannedSets: [3],
+        plannedReps: [4, 9],
       },
     })
     const { user } = await renderWithProviders(
@@ -1118,6 +1118,178 @@ describe('SaveProgressionModal', () => {
       screen.getByRole('button', { name: /5kg, 3 sets, 9 reps,.*light step 1/i }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+  })
+
+  // ── Bug 1 regression: plannedSets/plannedReps survive save+reload ────────
+  it('preserves the full set/rep axes the user authored when reopening a saved progression', async () => {
+    // Author a grid with setsValues=[3,5,8] and repValues=[5,8], but only
+    // select one cell. Before the fix, reopening derived axes from the saved
+    // volumeSets and the unselected axes vanished.
+    const { db, seed } = await seedFixtures()
+    const { user, unmount } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    await user.type(await screen.findByLabelText('Name'), 'Wide Axes')
+    await addChip(user, /^sets$/i, 3)
+    await addChip(user, /^sets$/i, 5)
+    await addChip(user, /^sets$/i, 8)
+    await addChip(user, /^reps$/i, 5)
+    await addChip(user, /^reps$/i, 8)
+
+    // Select exactly one cell — the other 5 are intentionally left empty.
+    const cells = findCellButtonsForRow(/^Unloaded, 3 sets, 5 reps/i)
+    await user.click(cells[0]!)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Add Progression')).not.toBeInTheDocument()
+    })
+
+    // Reload the persisted progression and reopen the modal with it.
+    const persisted = await seed.service.listProgressionsByExercise(
+      seed.exerciseBodyweight.id as string,
+    )
+    const created = persisted[0]!
+
+    // Tear the first tree down so the second render starts clean.
+    unmount()
+    const { user: user2 } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} progression={created} />,
+      { db },
+    )
+    await user2.click(screen.getByRole('button', { name: 'Open' }))
+
+    // All three sets chips and both reps chips appear, including the unused ones.
+    const setsGroup = await screen.findByRole('group', { name: /^sets$/i })
+    expect(within(setsGroup).getByText('3')).toBeInTheDocument()
+    expect(within(setsGroup).getByText('5')).toBeInTheDocument()
+    expect(within(setsGroup).getByText('8')).toBeInTheDocument()
+    const repsGroup = await screen.findByRole('group', { name: /^reps$/i })
+    expect(within(repsGroup).getByText('5')).toBeInTheDocument()
+    expect(within(repsGroup).getByText('8')).toBeInTheDocument()
+
+    // 3 rows × 2 cols = 6 grid cells should render even though 5 are empty.
+    const allCells = screen.getAllByRole('button').filter(b =>
+      /^Unloaded, \d sets, \d reps/i.test(b.getAttribute('aria-label') ?? ''),
+    )
+    expect(allCells.length).toBe(6)
+    // Exactly one is selected (the (3, 5) cell).
+    const selected = allCells.filter(b => b.getAttribute('aria-pressed') === 'true')
+    expect(selected).toHaveLength(1)
+    expect(selected[0]!.getAttribute('aria-label')).toMatch(/3 sets, 5 reps/i)
+  })
+
+  // ── Bug 2 regression: sort order persists in its own table ───────────────
+  it('persists sort-order changes and restores them on next open', async () => {
+    const { db, seed } = await seedFixtures()
+    const created = await seed.service.createProgression({
+      name: 'Sortable',
+      exerciseId: seed.exerciseBodyweight.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [{ sets: 3, quantifierValue: 5, resistanceSource: [] }],
+        plannedSets: [3],
+        plannedReps: [5],
+      },
+    })
+
+    // First mount: open the modal, flip Resistance from asc → desc.
+    const { user, unmount } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+    // Resistance row is the first in default order. Enter edit so the
+    // direction toggle is enabled.
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    const sortFieldset = await screen.findByRole('group', {
+      name: /row \/ column sort priority/i,
+    })
+    // Scope to the Resistance row — every row has an "Ascending" toggle by default.
+    const resistanceRow = within(sortFieldset).getByText('Resistance').parentElement as HTMLElement
+    const ascToggle = within(resistanceRow).getByRole('button', { name: /ascending/i })
+    await user.click(ascToggle)
+    // After the flip the toggle title becomes "Descending (click to flip)".
+    expect(
+      await within(resistanceRow).findByRole('button', { name: /descending/i }),
+    ).toBeInTheDocument()
+
+    // Tear down the entire tree to force a fresh query cache + remount.
+    unmount()
+
+    const { user: user2 } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} progression={created} />,
+      { db },
+    )
+    await user2.click(await screen.findByRole('button', { name: 'Open' }))
+
+    // After reopen, the Resistance row still shows the descending toggle.
+    const sortFieldset2 = await screen.findByRole('group', {
+      name: /row \/ column sort priority/i,
+    })
+    const resistanceRow2 = within(sortFieldset2).getByText('Resistance').parentElement as HTMLElement
+    expect(
+      await within(resistanceRow2).findByRole('button', { name: /descending/i }),
+    ).toBeInTheDocument()
+  })
+
+  // ── Bug regression: sort order chosen during create is persisted ─────────
+  it('persists sort-order chosen during create and restores it on next open', async () => {
+    // Author a new progression, flip Resistance direction asc → desc BEFORE
+    // saving, then save. Reopen the persisted progression — the descending
+    // choice must survive.
+    const { db, seed } = await seedFixtures()
+    const { user, unmount } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    await user.type(await screen.findByLabelText('Name'), 'Create Sort')
+    await addChip(user, /^sets$/i, 3)
+    await addChip(user, /^reps$/i, 5)
+    const cells = findCellButtonsForRow(/^Unloaded, 3 sets, 5 reps/i)
+    await user.click(cells[0]!)
+
+    // Flip Resistance direction before saving.
+    const sortFieldset = await screen.findByRole('group', {
+      name: /row \/ column sort priority/i,
+    })
+    const resistanceRow = within(sortFieldset).getByText('Resistance').parentElement as HTMLElement
+    await user.click(within(resistanceRow).getByRole('button', { name: /ascending/i }))
+    expect(
+      await within(resistanceRow).findByRole('button', { name: /descending/i }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(screen.queryByText('Add Progression')).not.toBeInTheDocument()
+    })
+
+    const persisted = await seed.service.listProgressionsByExercise(
+      seed.exerciseBodyweight.id as string,
+    )
+    expect(persisted).toHaveLength(1)
+    const created = persisted[0]!
+
+    unmount()
+    const { user: user2 } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseBodyweight} progression={created} />,
+      { db },
+    )
+    await user2.click(await screen.findByRole('button', { name: 'Open' }))
+
+    const sortFieldset2 = await screen.findByRole('group', {
+      name: /row \/ column sort priority/i,
+    })
+    const resistanceRow2 = within(sortFieldset2).getByText('Resistance').parentElement as HTMLElement
+    expect(
+      await within(resistanceRow2).findByRole('button', { name: /descending/i }),
+    ).toBeInTheDocument()
   })
 
   it('opens an existing heavy/light progression in view mode with H1/L1 step labels', async () => {
@@ -1155,6 +1327,8 @@ describe('SaveProgressionModal', () => {
             }],
           },
         }],
+        plannedSets: [3],
+        plannedReps: [5, 10],
       },
     })
     const { user } = await renderWithProviders(

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import type { Db } from '../client'
+import type { Db, DbOrTx } from '../client'
 import { progressionDefs } from '../schema'
 import type { ProgressionDef } from '../../domain'
 import { EntityNotFoundError } from '../../domain'
@@ -30,7 +30,7 @@ export async function deleteProgressionDef(db: Db, id: string): Promise<void> {
   await db.delete(progressionDefs).where(eq(progressionDefs.id, id))
 }
 
-export async function saveProgressionDef(db: Db, def: ProgressionDef): Promise<void> {
+export async function saveProgressionDef(db: DbOrTx, def: ProgressionDef): Promise<void> {
   const row = progressionDefToRow(def)
   await db
     .insert(progressionDefs)

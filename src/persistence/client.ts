@@ -3,6 +3,10 @@ import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite'
 import * as schema from './schema'
 
 export type Db = PgliteDatabase<typeof schema> & { $client: PGlite }
+// Either a top-level Db or a Drizzle transaction handle inside `db.transaction`.
+// Repo functions that may run inside a transaction accept this widened type so
+// app services can compose multiple writes atomically without unsafe casts.
+export type DbOrTx = PgliteDatabase<typeof schema>
 
 // Eagerly load all migration SQL files at build time. Vite inlines each file
 // as a raw string. Drizzle-kit names files `NNNN_<slug>.sql`, so sorting by

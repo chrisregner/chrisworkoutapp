@@ -4,8 +4,14 @@ import type { EquipmentDef, ExerciseDef, ProgressionDef, VolumeSet, VolumeSetInp
 
 export type ProgressionKind = 'linear' | 'heavyLight'
 
-export type SortDimension = 'Resistance' | 'Sets' | 'Reps'
-export type SortEntry = { dim: SortDimension; dir: 'asc' | 'desc' }
+// Sort column + direction match the persistence shape exactly (lowercase).
+// Capitalization for display is a render-time concern — see `sortColumnLabel`.
+export type SortColumn = 'resistance' | 'sets' | 'reps'
+export type SortEntry = { column: SortColumn; direction: 'asc' | 'desc' }
+
+export function sortColumnLabel(column: SortColumn): string {
+  return column.charAt(0).toUpperCase() + column.slice(1)
+}
 
 export type ResistanceConfig = {
   id: string
@@ -20,9 +26,9 @@ export type HeavyLightPair = { heavy: string; light: string }
 export const UNLOADED_CONFIG_ID = 'unloaded'
 
 export const DEFAULT_SORT: [SortEntry, SortEntry, SortEntry] = [
-  { dim: 'Resistance', dir: 'asc' },
-  { dim: 'Sets', dir: 'asc' },
-  { dim: 'Reps', dir: 'asc' },
+  { column: 'resistance', direction: 'asc' },
+  { column: 'sets', direction: 'asc' },
+  { column: 'reps', direction: 'asc' },
 ]
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -164,14 +170,11 @@ export function buildInitialState(
   if (progression) {
     const kind: ProgressionKind = progression.body.kind
     const configs = deriveConfigsFromProgression(progression, exercise.equipment)
-    const setsList: number[] = []
-    const repsList: number[] = []
-    for (const vs of iterateBodySets(progression)) {
-      setsList.push(vs.sets as number)
-      repsList.push(vs.quantifierValue as number)
-    }
-    const setsValues = [...new Set(setsList)].sort((a, b) => a - b)
-    const repValues = [...new Set(repsList)].sort((a, b) => a - b)
+    // Trust the smart constructor: plannedSets/plannedReps are always present
+    // and well-formed (non-empty, deduped, sorted) on persisted bodies. Read
+    // them directly — no fallback to deriving from volumeSets.
+    const setsValues = progression.body.plannedSets.map(n => n as number)
+    const repValues = progression.body.plannedReps.map(n => n as number)
     const selectedCells = deriveSelectedCells(progression, configs)
     const pairs = derivePairs(progression, configs)
     return {

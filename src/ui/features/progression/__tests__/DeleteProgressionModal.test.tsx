@@ -14,7 +14,6 @@ import { screen, within } from '@testing-library/react'
 import { renderWithProviders } from '../../../testing/renderWithProviders'
 import { makeTestDb } from '../../../../persistence/testing'
 import { DefinitionsService } from '../../../../app'
-import { makeQuantifierRule } from '../../../../domain'
 import { DeleteProgressionModal } from '../DeleteProgressionModal'
 import type { ExerciseDef, ProgressionDef } from '../../../../domain'
 
@@ -26,7 +25,6 @@ async function seedProgression(
   const exercise = await service.createExercise({
     name: 'Pushup',
     quantifierType: 'reps',
-    quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 1, max: 20 }),
     equipmentId: null,
   })
   const progression = await service.createProgression({
@@ -35,6 +33,8 @@ async function seedProgression(
     body: {
       kind: 'linear',
       volumeSets: [{ sets: 3, quantifierValue: 5, resistanceSource: [] }],
+      plannedSets: [3],
+      plannedReps: [5],
     },
   })
   return { service, exercise, progression }

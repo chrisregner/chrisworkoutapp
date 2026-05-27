@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // SortPriorityControl behavior inventory
 //
-// - clicking a row's direction toggle emits the same order with that row's dir
-//   flipped (asc ↔ desc)
+// - clicking a row's direction toggle emits the same order with that row's
+//   direction flipped (asc ↔ desc)
 // - clicking the down chevron on row N swaps rows N and N+1
 // - clicking the up chevron on row N swaps rows N and N-1
 // - the up chevron on the first row and the down chevron on the last row are
@@ -19,9 +19,9 @@ import { SortPriorityControl } from '../SortPriorityControl'
 import type { SortEntry } from '../saveProgressionState'
 
 const DEFAULT_SORT: [SortEntry, SortEntry, SortEntry] = [
-  { dim: 'Resistance', dir: 'asc' },
-  { dim: 'Sets', dir: 'asc' },
-  { dim: 'Reps', dir: 'asc' },
+  { column: 'resistance', direction: 'asc' },
+  { column: 'sets', direction: 'asc' },
+  { column: 'reps', direction: 'asc' },
 ]
 
 function renderControl(
@@ -37,9 +37,9 @@ function renderControl(
   return { ...result, onChange, user: userEvent.setup() }
 }
 
-/** Find the row container by the dimension name it shows. */
-function rowFor(dim: string): HTMLElement {
-  return screen.getByText(dim).parentElement as HTMLElement
+/** Find the row container by the column label it shows. */
+function rowFor(label: string): HTMLElement {
+  return screen.getByText(label).parentElement as HTMLElement
 }
 
 describe('SortPriorityControl', () => {
@@ -49,9 +49,9 @@ describe('SortPriorityControl', () => {
     const flip = resistanceRow.querySelector('button[title*="Ascending"]') as HTMLElement
     await user.click(flip)
     expect(onChange).toHaveBeenCalledWith([
-      { dim: 'Resistance', dir: 'desc' },
-      { dim: 'Sets', dir: 'asc' },
-      { dim: 'Reps', dir: 'asc' },
+      { column: 'resistance', direction: 'desc' },
+      { column: 'sets', direction: 'asc' },
+      { column: 'reps', direction: 'asc' },
     ])
   })
 
@@ -64,9 +64,9 @@ describe('SortPriorityControl', () => {
     const downChevron = actionBtns[actionBtns.length - 1] as HTMLElement
     await user.click(downChevron)
     expect(onChange).toHaveBeenCalledWith([
-      { dim: 'Sets', dir: 'asc' },
-      { dim: 'Resistance', dir: 'asc' },
-      { dim: 'Reps', dir: 'asc' },
+      { column: 'sets', direction: 'asc' },
+      { column: 'resistance', direction: 'asc' },
+      { column: 'reps', direction: 'asc' },
     ])
   })
 
@@ -78,9 +78,9 @@ describe('SortPriorityControl', () => {
     const upChevron = actionBtns[1] as HTMLElement
     await user.click(upChevron)
     expect(onChange).toHaveBeenCalledWith([
-      { dim: 'Sets', dir: 'asc' },
-      { dim: 'Resistance', dir: 'asc' },
-      { dim: 'Reps', dir: 'asc' },
+      { column: 'sets', direction: 'asc' },
+      { column: 'resistance', direction: 'asc' },
+      { column: 'reps', direction: 'asc' },
     ])
   })
 

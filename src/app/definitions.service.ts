@@ -6,6 +6,7 @@ import {
   saveEquipmentDef,
   saveExerciseDef,
   saveProgressionDef,
+  saveSortOrder,
   deleteEquipmentDef,
   deleteExerciseDef,
   deleteProgressionDef,
@@ -13,6 +14,7 @@ import {
   listEquipmentDefs,
   listExerciseDefs,
   listProgressionsByExercise,
+  type SortOrder,
 } from '../persistence/repositories'
 import {
   EntityNotFoundError,
@@ -24,7 +26,6 @@ import {
   type ExerciseDef,
   type ProgressionDef,
   type ProgressionBodyInput,
-  type QuantifierRule,
   type Unit,
 } from '../domain'
 import { newId } from '../shared'
@@ -59,7 +60,6 @@ export class DefinitionsService {
     name: string
     description?: string
     quantifierType: 'reps' | 'seconds'
-    quantifierRule: QuantifierRule
     equipmentId: string | null
     shouldCombineResistance?: boolean
   }): Promise<ExerciseDef> {
@@ -74,7 +74,6 @@ export class DefinitionsService {
       name: input.name,
       description: input.description,
       quantifierType: input.quantifierType,
-      quantifierRule: input.quantifierRule,
       equipment,
       shouldCombineResistance: input.shouldCombineResistance,
     })
@@ -116,7 +115,6 @@ export class DefinitionsService {
       name: string
       description?: string
       quantifierType: 'reps' | 'seconds'
-      quantifierRule: QuantifierRule
       equipmentId: string | null
       shouldCombineResistance?: boolean
     },
@@ -125,12 +123,12 @@ export class DefinitionsService {
     if (!existing) throw new EntityNotFoundError('exercise', id)
     const equipment = input.equipmentId ? await findEquipmentDef(this.db, input.equipmentId) : null
     if (input.equipmentId && !equipment) throw new EntityNotFoundError('equipment', input.equipmentId)
+
     const def = makeExerciseDef({
       id,
       name: input.name,
       description: input.description,
       quantifierType: input.quantifierType,
-      quantifierRule: input.quantifierRule,
       equipment,
       shouldCombineResistance: input.shouldCombineResistance,
     })
@@ -162,6 +160,10 @@ export class DefinitionsService {
     name: string
     exerciseId: string
     body: ProgressionBodyInput
+    // Optional presentation hint: persisted into progression_view_state in the
+    // same transaction as the progression itself so the create use case stays
+    // atomic. Omit to defer to the default sort order on first read.
+    initialSortOrder?: SortOrder
   }): Promise<ProgressionDef> {
     const exercise = await findExerciseDef(this.db, input.exerciseId)
     if (!exercise) throw new EntityNotFoundError('exercise', input.exerciseId)
@@ -180,7 +182,12 @@ export class DefinitionsService {
       exercise,
       body: input.body,
     })
-    await saveProgressionDef(this.db, def)
+    await this.db.transaction(async tx => {
+      await saveProgressionDef(tx, def)
+      if (input.initialSortOrder && input.initialSortOrder.length > 0) {
+        await saveSortOrder(tx, def.id as string, input.initialSortOrder)
+      }
+    })
     return def
   }
 

@@ -1,0 +1,331 @@
+{
+  "id": "789dfbd3-9325-4835-a8d6-0cb08a5d1940",
+  "prevId": "984c539e-ec57-40c6-b0db-1acc459d7031",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.equipment_defs": {
+      "name": "equipment_defs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_combinable": {
+          "name": "is_combinable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.equipment_pieces": {
+      "name": "equipment_pieces",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "equipment_def_id": {
+          "name": "equipment_def_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resistance": {
+          "name": "resistance",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "equipment_pieces_equipment_def_id_equipment_defs_id_fk": {
+          "name": "equipment_pieces_equipment_def_id_equipment_defs_id_fk",
+          "tableFrom": "equipment_pieces",
+          "tableTo": "equipment_defs",
+          "columnsFrom": [
+            "equipment_def_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "equipment_pieces_quantity_chk": {
+          "name": "equipment_pieces_quantity_chk",
+          "value": "\"equipment_pieces\".\"quantity\" >= 1"
+        },
+        "equipment_pieces_resistance_chk": {
+          "name": "equipment_pieces_resistance_chk",
+          "value": "\"equipment_pieces\".\"resistance\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.exercise_defs": {
+      "name": "exercise_defs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantifier_type": {
+          "name": "quantifier_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantifier_rule": {
+          "name": "quantifier_rule",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resistance_equipment_id": {
+          "name": "resistance_equipment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "should_combine_resistance": {
+          "name": "should_combine_resistance",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "selected_piece_ids": {
+          "name": "selected_piece_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "exercise_defs_resistance_equipment_id_equipment_defs_id_fk": {
+          "name": "exercise_defs_resistance_equipment_id_equipment_defs_id_fk",
+          "tableFrom": "exercise_defs",
+          "tableTo": "equipment_defs",
+          "columnsFrom": [
+            "resistance_equipment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.progression_defs": {
+      "name": "progression_defs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "exercise_id": {
+          "name": "exercise_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_kind": {
+          "name": "body_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "progression_defs_exercise_id_exercise_defs_id_fk": {
+          "name": "progression_defs_exercise_id_exercise_defs_id_fk",
+          "tableFrom": "progression_defs",
+          "tableTo": "exercise_defs",
+          "columnsFrom": [
+            "exercise_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "progression_defs_body_kind_chk": {
+          "name": "progression_defs_body_kind_chk",
+          "value": "\"progression_defs\".\"body\"->>'kind' = \"progression_defs\".\"body_kind\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.progression_view_state": {
+      "name": "progression_view_state",
+      "schema": "",
+      "columns": {
+        "progression_def_id": {
+          "name": "progression_def_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "progression_view_state_progression_def_id_progression_defs_id_fk": {
+          "name": "progression_view_state_progression_def_id_progression_defs_id_fk",
+          "tableFrom": "progression_view_state",
+          "tableTo": "progression_defs",
+          "columnsFrom": [
+            "progression_def_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
