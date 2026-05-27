@@ -7,6 +7,7 @@ import { ProgressionGrid } from './ProgressionGrid'
 import { ResistanceFieldset } from './ResistanceFieldset'
 import { SaveProgressionTitle } from './SaveProgressionTitle'
 import { SortPriorityControl } from './SortPriorityControl'
+import type { ProgressionKind } from './saveProgressionState'
 import { useSaveProgression } from './useSaveProgression'
 import { useSaveProgressionForm } from './useSaveProgressionForm'
 
@@ -15,10 +16,15 @@ type Props = {
   onClose: () => void
   exercise: ExerciseDef
   progression?: ProgressionDef
+  kind?: ProgressionKind
 }
 
-export function SaveProgressionModal({ opened, onClose, exercise, progression }: Props) {
-  const form = useSaveProgressionForm({ opened, exercise, progression })
+function kindLabel(kind: ProgressionKind): string {
+  return kind === 'heavyLight' ? 'Heavy/Light' : 'Linear'
+}
+
+export function SaveProgressionModal({ opened, onClose, exercise, progression, kind: kindProp }: Props) {
+  const form = useSaveProgressionForm({ opened, exercise, progression, kind: kindProp })
   const { mutate, isPending, error } = useSaveProgression({ onSuccess: onClose })
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
@@ -29,14 +35,17 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression }:
     mutate({
       name: form.name.trim(),
       exerciseId: exercise.id as string,
-      body: { kind: 'linear', volumeSets: form.buildVolumeSets() },
+      body: form.buildBody(),
       progressionId: progression ? progression.id as string : undefined,
     })
   }
 
+  const kindPrefix = form.kind === 'heavyLight' ? `${kindLabel(form.kind)} ` : ''
   const title = progression
-    ? form.mode === 'edit' ? 'Edit Progression' : 'Progression'
-    : 'Add Progression'
+    ? form.mode === 'edit' ? `Edit ${kindPrefix}Progression` : `${kindPrefix}Progression`
+    : `Add ${kindPrefix}Progression`
+
+  const stepCount = form.kind === 'linear' ? form.selectedCells.length : form.pairs.length
 
   return (
     <Modal
@@ -102,20 +111,49 @@ export function SaveProgressionModal({ opened, onClose, exercise, progression }:
 
         <Divider label="Progression grid" labelPosition="left" />
 
-        <ProgressionGrid
-          configs={form.configs}
-          setsValues={form.setsValues}
-          repValues={form.repValues}
-          sortOrder={form.sortOrder}
-          selectedCells={form.selectedCells}
-          quantifierType={exercise.quantifierType}
-          onToggleCell={form.toggleCell}
-          readOnly={readOnly}
-        />
-
-        {form.selectedCells.length > 0 && (
+        {form.kind === 'heavyLight' && (
           <Text size="xs" c="dimmed">
-            {form.selectedCells.length} step{form.selectedCells.length !== 1 ? 's' : ''} selected
+            Tap a cell for the heavy half, then a cell for the light half to form a step.
+            Re-tap a pending heavy or any paired cell to clear it.
+          </Text>
+        )}
+
+        {form.kind === 'linear' ? (
+          <ProgressionGrid
+            mode="linear"
+            configs={form.configs}
+            setsValues={form.setsValues}
+            repValues={form.repValues}
+            sortOrder={form.sortOrder}
+            selectedCells={form.selectedCells}
+            quantifierType={exercise.quantifierType}
+            onToggleCell={form.toggleCell}
+            readOnly={readOnly}
+          />
+        ) : (
+          <ProgressionGrid
+            mode="heavyLight"
+            configs={form.configs}
+            setsValues={form.setsValues}
+            repValues={form.repValues}
+            sortOrder={form.sortOrder}
+            pairs={form.pairs}
+            pendingHeavy={form.pendingHeavy}
+            quantifierType={exercise.quantifierType}
+            onToggleCell={form.toggleCell}
+            readOnly={readOnly}
+          />
+        )}
+
+        {stepCount > 0 && (
+          <Text size="xs" c="dimmed">
+            {stepCount} step{stepCount !== 1 ? 's' : ''} selected
+          </Text>
+        )}
+
+        {form.pendingHeavy && (
+          <Text size="xs" c="red">
+            Heavy half selected. Tap a cell to set the light half, or re-tap to cancel.
           </Text>
         )}
 

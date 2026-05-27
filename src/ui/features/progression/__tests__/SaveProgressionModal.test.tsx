@@ -60,10 +60,20 @@
 //   modal surfaces the EntityNotFoundError message in an alert (typed error
 //   bubbles as readable UI)
 //
-// Heavy/Light invariant — NOT testable here.
-// SaveProgressionModal only constructs linear progressions (see handleSubmit:
-// body.kind === 'linear'). The HeavyLight invariant lives in the domain smart
-// constructor and is not reachable through this UI. See report.
+// Heavy/Light
+// - when kind="heavyLight", picking a heavy cell then a light cell forms a
+//   step labeled H1/L1; Save persists the body as { kind: 'heavyLight', ... }
+// - re-tapping the pending heavy cell clears it
+// - re-tapping a paired cell removes that pair entirely
+// - invariant violation (heavy.resistance <= light.resistance, or
+//   light.volume <= heavy.volume) surfaces via the typed domain error in the
+//   Alert on Save; persistence is untouched
+// - opening an existing HeavyLight progression renders both halves with the
+//   H{n}/L{n} step labels in view mode
+// - when the sets/reps chip backing the pendingHeavy cell is removed, the
+//   pending-heavy state clears (cell-validity filter)
+// - opening an existing HeavyLight progression on combinable equipment
+//   renders both halves with H1/L1 labels and no Save (view mode)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from 'vitest'
@@ -84,9 +94,11 @@ import { makeTestDb } from '../../../../persistence/testing'
 function ModalHarness({
   exercise,
   progression,
+  kind,
 }: {
   exercise: ExerciseDef
   progression?: ProgressionDef
+  kind?: 'linear' | 'heavyLight'
 }) {
   const [opened, setOpened] = useState(false)
   return (
@@ -97,6 +109,7 @@ function ModalHarness({
         onClose={() => setOpened(false)}
         exercise={exercise}
         progression={progression}
+        kind={kind}
       />
     </>
   )
@@ -881,5 +894,286 @@ describe('SaveProgressionModal', () => {
     // the Alert is the only red surface in the modal.
     const alert = await screen.findByRole('alert')
     expect(alert.textContent ?? '').toMatch(/exercise/i)
+  })
+
+  // ── Heavy/Light ───────────────────────────────────────────────────────────
+
+  it('saves a heavy/light progression: tap heavy cell, then light cell, then Save', async () => {
+    const { db, seed } = await seedFixtures()
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseFixed} kind="heavyLight" />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    expect(await screen.findByText(/add heavy\/light progression/i)).toBeInTheDocument()
+
+    await user.type(await screen.findByLabelText('Name'), 'HL A')
+    await addChip(user, /^sets$/i, 3)
+    await addChip(user, /^reps$/i, 5)
+    await addChip(user, /^reps$/i, 10)
+
+    // Heavy: 16kg × 3 sets × 5 reps (volume 240). Light: 12kg × 3 sets × 10 reps (volume 360).
+    // heavy.resistance (16) > light.resistance (12) ✓
+    // light.volume (360) > heavy.volume (240) ✓
+    const heavyCell = await screen.findByRole('button', { name: /^16kg, 3 sets, 5 reps,/i })
+    await user.click(heavyCell)
+
+    // After first tap, cell announces "pending heavy".
+    expect(
+      await screen.findByRole('button', { name: /16kg, 3 sets, 5 reps,.*pending heavy/i }),
+    ).toBeInTheDocument()
+    // Save still disabled while pending half present.
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+
+    const lightCell = await screen.findByRole('button', { name: /^12kg, 3 sets, 10 reps,/i })
+    await user.click(lightCell)
+
+    // Pair commits: heavy cell becomes "heavy step 1", light becomes "light step 1".
+    expect(
+      await screen.findByRole('button', { name: /16kg, 3 sets, 5 reps,.*heavy step 1/i }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /12kg, 3 sets, 10 reps,.*light step 1/i }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText(/1 step selected/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/add heavy\/light progression/i)).not.toBeInTheDocument()
+    })
+
+    const persisted = await seed.service.listProgressionsByExercise(
+      seed.exerciseFixed.id as string,
+    )
+    expect(persisted).toHaveLength(1)
+    expect(persisted[0]!.name).toBe('HL A')
+    const body = persisted[0]!.body
+    expect(body.kind).toBe('heavyLight')
+    if (body.kind !== 'heavyLight') throw new Error('expected heavyLight')
+    expect(body.volumeSets).toHaveLength(1)
+    expect(body.volumeSets[0]!.heavy.quantifierValue as number).toBe(5)
+    expect(body.volumeSets[0]!.light.quantifierValue as number).toBe(10)
+  })
+
+  it('re-tapping the pending heavy cell unsets it', async () => {
+    const { db, seed } = await seedFixtures()
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseFixed} kind="heavyLight" />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    await addChip(user, /^sets$/i, 3)
+    await addChip(user, /^reps$/i, 5)
+
+    const heavyCell = await screen.findByRole('button', { name: /^16kg, 3 sets, 5 reps,/i })
+    await user.click(heavyCell)
+    expect(
+      await screen.findByRole('button', { name: /pending heavy/i }),
+    ).toBeInTheDocument()
+
+    // Re-tap the same cell → pending cleared.
+    await user.click(await screen.findByRole('button', { name: /pending heavy/i }))
+    expect(
+      screen.queryByRole('button', { name: /pending heavy/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('re-tapping a paired cell removes that pair entirely', async () => {
+    const { db, seed } = await seedFixtures()
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseFixed} kind="heavyLight" />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    await addChip(user, /^sets$/i, 3)
+    await addChip(user, /^reps$/i, 5)
+    await addChip(user, /^reps$/i, 10)
+
+    await user.click(await screen.findByRole('button', { name: /^16kg, 3 sets, 5 reps,/i }))
+    await user.click(await screen.findByRole('button', { name: /^12kg, 3 sets, 10 reps,/i }))
+
+    // Pair committed → click heavy half again to remove the pair.
+    await user.click(
+      await screen.findByRole('button', { name: /16kg, 3 sets, 5 reps,.*heavy step 1/i }),
+    )
+
+    expect(screen.queryByRole('button', { name: /heavy step 1/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /light step 1/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/1 step selected/i)).not.toBeInTheDocument()
+  })
+
+  it('surfaces the HeavyLight invariant violation as an Alert when Save is attempted with an invalid pair', async () => {
+    const { db, seed } = await seedFixtures()
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseFixed} kind="heavyLight" />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    await user.type(await screen.findByLabelText('Name'), 'Bad HL')
+    await addChip(user, /^sets$/i, 3)
+    await addChip(user, /^reps$/i, 5)
+    await addChip(user, /^reps$/i, 8)
+
+    // Pick heavy=12kg (low) then light=16kg (high) → violates
+    // heavy.resistance > light.resistance.
+    await user.click(await screen.findByRole('button', { name: /^12kg, 3 sets, 5 reps,/i }))
+    await user.click(await screen.findByRole('button', { name: /^16kg, 3 sets, 8 reps,/i }))
+
+    expect(await screen.findByText(/1 step selected/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent ?? '').toMatch(/heavy\.resistance must exceed light\.resistance/i)
+
+    // Persistence untouched.
+    const persisted = await seed.service.listProgressionsByExercise(
+      seed.exerciseFixed.id as string,
+    )
+    expect(persisted).toHaveLength(0)
+  })
+
+  it('clears pendingHeavy when its backing sets chip is removed mid-edit', async () => {
+    const { db, seed } = await seedFixtures()
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseFixed} kind="heavyLight" />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    await addChip(user, /^sets$/i, 3)
+    await addChip(user, /^reps$/i, 5)
+
+    await user.click(await screen.findByRole('button', { name: /^16kg, 3 sets, 5 reps,/i }))
+    expect(
+      await screen.findByRole('button', { name: /pending heavy/i }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText(/heavy half selected/i)).toBeInTheDocument()
+
+    // Remove the "3" sets chip → the pendingHeavy cell id becomes invalid.
+    const setsGroup = await screen.findByRole('group', { name: /^sets$/i })
+    await user.click(within(setsGroup).getByRole('button', { name: 'Remove 3' }))
+
+    expect(screen.queryByRole('button', { name: /pending heavy/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/heavy half selected/i)).not.toBeInTheDocument()
+  })
+
+  it('opens an existing heavy/light progression on combinable equipment in view mode with H1/L1 labels', async () => {
+    const { db, seed } = await seedFixtures()
+    const piece10 = seed.equipmentCombinable.pieces.find(p => (p.resistance as number) === 10)!
+    const piece5 = seed.equipmentCombinable.pieces.find(p => (p.resistance as number) === 5)!
+    // Heavy: 10kg (1×10kg), sets 3, reps 4 → volume 120
+    // Light:  5kg (1×5kg),  sets 3, reps 9 → volume 135
+    // heavy.resistance 10 > light.resistance 5 ✓
+    // light.volume 135 > heavy.volume 120 ✓
+    const created = await seed.service.createProgression({
+      name: 'HL Combinable',
+      exerciseId: seed.exerciseCombinable.id as string,
+      body: {
+        kind: 'heavyLight',
+        volumeSets: [{
+          heavy: {
+            sets: 3,
+            quantifierValue: 4,
+            resistanceSource: [{
+              piece: {
+                pieceId: piece10.id as string,
+                resistance: piece10.resistance as number,
+                totalQuantity: piece10.quantity as number,
+              },
+              quantityUsed: 1,
+            }],
+          },
+          light: {
+            sets: 3,
+            quantifierValue: 9,
+            resistanceSource: [{
+              piece: {
+                pieceId: piece5.id as string,
+                resistance: piece5.resistance as number,
+                totalQuantity: piece5.quantity as number,
+              },
+              quantityUsed: 1,
+            }],
+          },
+        }],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseCombinable} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    expect(await screen.findByText(/^Heavy\/Light Progression$/)).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /10kg, 3 sets, 4 reps,.*heavy step 1/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /5kg, 3 sets, 9 reps,.*light step 1/i }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+  })
+
+  it('opens an existing heavy/light progression in view mode with H1/L1 step labels', async () => {
+    const { db, seed } = await seedFixtures()
+    const piece16 = seed.equipmentFixed.pieces.find(p => (p.resistance as number) === 16)!
+    const piece12 = seed.equipmentFixed.pieces.find(p => (p.resistance as number) === 12)!
+    const created = await seed.service.createProgression({
+      name: 'HL Existing',
+      exerciseId: seed.exerciseFixed.id as string,
+      body: {
+        kind: 'heavyLight',
+        volumeSets: [{
+          heavy: {
+            sets: 3,
+            quantifierValue: 5,
+            resistanceSource: [{
+              piece: {
+                pieceId: piece16.id as string,
+                resistance: piece16.resistance as number,
+                totalQuantity: piece16.quantity as number,
+              },
+              quantityUsed: piece16.quantity as number,
+            }],
+          },
+          light: {
+            sets: 3,
+            quantifierValue: 10,
+            resistanceSource: [{
+              piece: {
+                pieceId: piece12.id as string,
+                resistance: piece12.resistance as number,
+                totalQuantity: piece12.quantity as number,
+              },
+              quantityUsed: piece12.quantity as number,
+            }],
+          },
+        }],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ModalHarness exercise={seed.exerciseFixed} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    // Title reflects HL kind in view mode.
+    expect(await screen.findByText(/^Heavy\/Light Progression$/)).toBeInTheDocument()
+
+    // Both halves of the pair render with their step labels.
+    expect(
+      await screen.findByRole('button', { name: /16kg, 3 sets, 5 reps,.*heavy step 1/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /12kg, 3 sets, 10 reps,.*light step 1/i }),
+    ).toBeInTheDocument()
+    // View mode: no Save button.
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 })

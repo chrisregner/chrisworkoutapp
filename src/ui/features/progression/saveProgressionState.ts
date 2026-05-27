@@ -1,6 +1,8 @@
-import type { EquipmentDef, ExerciseDef, ProgressionDef, VolumeSetInput } from '../../../domain'
+import type { EquipmentDef, ExerciseDef, ProgressionDef, VolumeSet, VolumeSetInput } from '../../../domain'
 
 // ── Types ────────────────────────────────────────────────────────────────────
+
+export type ProgressionKind = 'linear' | 'heavyLight'
 
 export type SortDimension = 'Resistance' | 'Sets' | 'Reps'
 export type SortEntry = { dim: SortDimension; dir: 'asc' | 'desc' }
@@ -10,6 +12,8 @@ export type ResistanceConfig = {
   label: string
   source: VolumeSetInput['resistanceSource']
 }
+
+export type HeavyLightPair = { heavy: string; light: string }
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -59,27 +63,41 @@ function labelForSource(
   return `+${total}`
 }
 
+function volumeSetToInputSource(vs: VolumeSet): VolumeSetInput['resistanceSource'] {
+  return vs.resistanceSource.map(r => ({
+    piece: {
+      ...(r.piece.pieceId !== undefined ? { pieceId: r.piece.pieceId as string } : {}),
+      resistance: r.piece.resistance as number,
+      totalQuantity: r.piece.totalQuantity as number,
+    },
+    quantityUsed: r.quantityUsed as number,
+  }))
+}
+
+function* iterateBodySets(progression: ProgressionDef): Generator<VolumeSet> {
+  if (progression.body.kind === 'linear') {
+    for (const vs of progression.body.volumeSets) yield vs
+  } else {
+    for (const pair of progression.body.volumeSets) {
+      yield pair.heavy
+      yield pair.light
+    }
+  }
+}
+
 function deriveConfigsFromProgression(
   progression: ProgressionDef,
   equipment: EquipmentDef | null,
 ): ResistanceConfig[] {
-  if (progression.body.kind !== 'linear') return []
   const seen = new Map<string, ResistanceConfig>()
-  // For bodyweight, ensure the implicit "Bodyweight" config is always present
+  // For bodyweight, ensure the implicit "Unloaded" config is always present
   // even if no saved volume set uses an empty source.
   if (!equipment) {
     const emptyKey = sourceKey([])
     seen.set(emptyKey, { id: UNLOADED_CONFIG_ID, label: 'Unloaded', source: [] })
   }
-  for (const vs of progression.body.volumeSets) {
-    const src: VolumeSetInput['resistanceSource'] = vs.resistanceSource.map(r => ({
-      piece: {
-        ...(r.piece.pieceId !== undefined ? { pieceId: r.piece.pieceId as string } : {}),
-        resistance: r.piece.resistance as number,
-        totalQuantity: r.piece.totalQuantity as number,
-      },
-      quantityUsed: r.quantityUsed as number,
-    }))
+  for (const vs of iterateBodySets(progression)) {
+    const src = volumeSetToInputSource(vs)
     const key = sourceKey(src)
     if (!seen.has(key)) {
       const id = src.length === 0 ? UNLOADED_CONFIG_ID : key
@@ -97,45 +115,79 @@ function findConfigId(
   return configs.find(c => sourceKey(c.source) === key)?.id
 }
 
+export function cellIdFor(configId: string, sets: number, reps: number): string {
+  return `${configId}|${sets}|${reps}`
+}
+
+function cellIdForSet(vs: VolumeSet, configs: ResistanceConfig[]): string {
+  const src = volumeSetToInputSource(vs)
+  const configId = findConfigId(configs, src) ?? ''
+  return cellIdFor(configId, vs.sets as number, vs.quantifierValue as number)
+}
+
 function deriveSelectedCells(
   progression: ProgressionDef,
   configs: ResistanceConfig[],
 ): string[] {
   if (progression.body.kind !== 'linear') return []
-  return progression.body.volumeSets.map(vs => {
-    const src: VolumeSetInput['resistanceSource'] = vs.resistanceSource.map(r => ({
-      piece: {
-        ...(r.piece.pieceId !== undefined ? { pieceId: r.piece.pieceId as string } : {}),
-        resistance: r.piece.resistance as number,
-        totalQuantity: r.piece.totalQuantity as number,
-      },
-      quantityUsed: r.quantityUsed as number,
-    }))
-    const configId = findConfigId(configs, src) ?? ''
-    return `${configId}|${vs.sets as number}|${vs.quantifierValue as number}`
-  })
+  return progression.body.volumeSets.map(vs => cellIdForSet(vs, configs))
+}
+
+function derivePairs(
+  progression: ProgressionDef,
+  configs: ResistanceConfig[],
+): HeavyLightPair[] {
+  if (progression.body.kind !== 'heavyLight') return []
+  return progression.body.volumeSets.map(pair => ({
+    heavy: cellIdForSet(pair.heavy, configs),
+    light: cellIdForSet(pair.light, configs),
+  }))
 }
 
 export type InitialFormState = {
+  kind: ProgressionKind
   name: string
   setsValues: number[]
   repValues: number[]
   configs: ResistanceConfig[]
   selectedCells: string[]
+  pairs: HeavyLightPair[]
+  pendingHeavy: string | null
   sortOrder: [SortEntry, SortEntry, SortEntry]
 }
 
 export function buildInitialState(
   exercise: ExerciseDef,
   progression?: ProgressionDef,
+  kindHint?: ProgressionKind,
 ): InitialFormState {
-  if (progression && progression.body.kind === 'linear') {
+  if (progression) {
+    const kind: ProgressionKind = progression.body.kind
     const configs = deriveConfigsFromProgression(progression, exercise.equipment)
+    const setsList: number[] = []
+    const repsList: number[] = []
+    for (const vs of iterateBodySets(progression)) {
+      setsList.push(vs.sets as number)
+      repsList.push(vs.quantifierValue as number)
+    }
+    const setsValues = [...new Set(setsList)].sort((a, b) => a - b)
+    const repValues = [...new Set(repsList)].sort((a, b) => a - b)
     const selectedCells = deriveSelectedCells(progression, configs)
-    const setsValues = [...new Set(progression.body.volumeSets.map(vs => vs.sets as number))].sort((a, b) => a - b)
-    const repValues = [...new Set(progression.body.volumeSets.map(vs => vs.quantifierValue as number))].sort((a, b) => a - b)
-    return { name: progression.name, setsValues, repValues, configs, selectedCells, sortOrder: DEFAULT_SORT }
+    const pairs = derivePairs(progression, configs)
+    return {
+      kind,
+      name: progression.name,
+      setsValues,
+      repValues,
+      configs,
+      selectedCells,
+      pairs,
+      pendingHeavy: null,
+      sortOrder: DEFAULT_SORT,
+    }
   }
+
+  const kind: ProgressionKind = kindHint ?? 'linear'
 
   let configs: ResistanceConfig[] = []
   if (exercise.equipment && !exercise.equipment.isCombinable) {
@@ -157,11 +209,14 @@ export function buildInitialState(
   }
 
   return {
+    kind,
     name: '',
     setsValues: [],
     repValues: [],
     configs,
     selectedCells: [],
+    pairs: [],
+    pendingHeavy: null,
     sortOrder: DEFAULT_SORT,
   }
 }

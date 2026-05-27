@@ -6,12 +6,16 @@
 //   message for reps exercises
 // - when quantifierType is 'seconds', the empty-state message says "seconds"
 //
-// Happy path
+// Happy path (linear)
 // - when given configs, sets and reps, renders one row per (config × sets)
 //   and one column per rep, and column headers show the rep count with unit
 // - when a cell id is in selectedCells, the cell displays its 1-based step
 //   number (order of selection)
 // - clicking a cell calls onToggleCell with the corresponding cell id
+//
+// Heavy/Light mode
+// - when given pairs, each pair's heavy cell shows H{step}, light shows L{step}
+// - when pendingHeavy is set, that cell's aria-label includes "pending heavy"
 //
 // Sort
 // - reversing the Reps sort direction reverses the order of column headers
@@ -22,10 +26,21 @@ import { MantineProvider } from '@mantine/core'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProgressionGrid } from '../ProgressionGrid'
-import type { ResistanceConfig, SortEntry } from '../saveProgressionState'
+import type { HeavyLightPair, ResistanceConfig, SortEntry } from '../saveProgressionState'
 import type { VolumeSetInput } from '../../../../domain'
 
-function renderGrid(props: Partial<Parameters<typeof ProgressionGrid>[0]> = {}) {
+type LinearGridProps = {
+  configs?: ResistanceConfig[]
+  setsValues?: number[]
+  repValues?: number[]
+  sortOrder?: [SortEntry, SortEntry, SortEntry]
+  selectedCells?: string[]
+  quantifierType?: 'reps' | 'seconds'
+  onToggleCell?: (cellId: string) => void
+  readOnly?: boolean
+}
+
+function renderGrid(props: LinearGridProps = {}) {
   const defaultSort: [SortEntry, SortEntry, SortEntry] = [
     { dim: 'Resistance', dir: 'asc' },
     { dim: 'Sets', dir: 'asc' },
@@ -35,11 +50,50 @@ function renderGrid(props: Partial<Parameters<typeof ProgressionGrid>[0]> = {}) 
   const result = render(
     <MantineProvider>
       <ProgressionGrid
+        mode="linear"
         configs={props.configs ?? []}
         setsValues={props.setsValues ?? []}
         repValues={props.repValues ?? []}
         sortOrder={props.sortOrder ?? defaultSort}
         selectedCells={props.selectedCells ?? []}
+        quantifierType={props.quantifierType ?? 'reps'}
+        onToggleCell={onToggleCell}
+        readOnly={props.readOnly}
+      />
+    </MantineProvider>,
+  )
+  return { ...result, onToggleCell, user: userEvent.setup() }
+}
+
+type HlGridProps = {
+  configs?: ResistanceConfig[]
+  setsValues?: number[]
+  repValues?: number[]
+  sortOrder?: [SortEntry, SortEntry, SortEntry]
+  pairs?: HeavyLightPair[]
+  pendingHeavy?: string | null
+  quantifierType?: 'reps' | 'seconds'
+  onToggleCell?: (cellId: string) => void
+  readOnly?: boolean
+}
+
+function renderHlGrid(props: HlGridProps = {}) {
+  const defaultSort: [SortEntry, SortEntry, SortEntry] = [
+    { dim: 'Resistance', dir: 'asc' },
+    { dim: 'Sets', dir: 'asc' },
+    { dim: 'Reps', dir: 'asc' },
+  ]
+  const onToggleCell = props.onToggleCell ?? vi.fn()
+  const result = render(
+    <MantineProvider>
+      <ProgressionGrid
+        mode="heavyLight"
+        configs={props.configs ?? []}
+        setsValues={props.setsValues ?? []}
+        repValues={props.repValues ?? []}
+        sortOrder={props.sortOrder ?? defaultSort}
+        pairs={props.pairs ?? []}
+        pendingHeavy={props.pendingHeavy ?? null}
         quantifierType={props.quantifierType ?? 'reps'}
         onToggleCell={onToggleCell}
         readOnly={props.readOnly}
@@ -128,6 +182,39 @@ describe('ProgressionGrid', () => {
     const cellButton = buttons[buttons.length - 1]!
     await user.click(cellButton)
     expect(onToggleCell).toHaveBeenCalledWith('cfg-a|3|5')
+  })
+
+  it('renders H{step}/L{step} step labels on each pair in heavyLight mode', () => {
+    const heavyCfg = sampleConfig('cfg-heavy', '20kg', 20)
+    const lightCfg = sampleConfig('cfg-light', '10kg', 10)
+    renderHlGrid({
+      configs: [heavyCfg, lightCfg],
+      setsValues: [3],
+      repValues: [5, 10],
+      pairs: [{ heavy: 'cfg-heavy|3|5', light: 'cfg-light|3|10' }],
+    })
+
+    expect(
+      screen.getByRole('button', { name: /20kg, 3 sets, 5 reps,.*heavy step 1/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /10kg, 3 sets, 10 reps,.*light step 1/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('marks the pendingHeavy cell with a pending-heavy aria-label in heavyLight mode', () => {
+    const cfg = sampleConfig('cfg-a', '10kg', 10)
+    renderHlGrid({
+      configs: [cfg],
+      setsValues: [3],
+      repValues: [5],
+      pairs: [],
+      pendingHeavy: 'cfg-a|3|5',
+    })
+
+    expect(
+      screen.getByRole('button', { name: /10kg, 3 sets, 5 reps,.*pending heavy/i }),
+    ).toBeInTheDocument()
   })
 
   it('reverses column header order when Reps sort direction is desc', () => {
