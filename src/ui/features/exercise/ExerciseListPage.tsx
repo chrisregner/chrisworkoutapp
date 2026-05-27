@@ -8,91 +8,24 @@ import {
   Divider,
   Group,
   Loader,
-  Modal,
   Stack,
   Text,
   Title,
   UnstyledButton,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { IconChevronDown, IconChevronUp, IconEdit, IconList, IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronUp, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useExerciseList } from './useExerciseList'
-import { useDeleteExercise } from './useDeleteExercise'
 import { SaveExerciseModal } from './SaveExerciseModal'
-import { SaveProgressionModal } from '../progression/SaveProgressionModal'
-import { useProgressionsByExercise } from '../progression/useProgressionsByExercise'
-import type { ExerciseDef, ProgressionDef, QuantifierRule } from '../../../domain'
+import { ProgressionsSection } from './ProgressionsSection'
+import { DeleteExerciseModal } from './DeleteExerciseModal'
+import type { ExerciseDef, QuantifierRule } from '../../../domain'
 
 function formatRule(rule: QuantifierRule, type: string): string {
   const unit = type === 'reps' ? 'reps' : 's'
   if (rule.kind === 'min-max') return `${rule.min}–${rule.max} ${unit}`
   return `${rule.values.join(', ')} ${unit}`
-}
-
-function ProgressionsSection({ exercise }: { exercise: ExerciseDef }) {
-  const { data: progressions = [], isLoading } = useProgressionsByExercise(exercise.id as string)
-  const [addOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false)
-  const [viewProgression, setViewProgression] = useState<ProgressionDef | null>(null)
-
-  function stepCount(p: ProgressionDef): number {
-    return p.body.volumeSets.length
-  }
-
-  return (
-    <Stack gap="xs">
-      <Group justify="space-between" align="center">
-        <Text size="xs" c="dimmed" fw={500}>Progressions</Text>
-        <Button
-          variant="subtle"
-          size="xs"
-          leftSection={<IconPlus size={12} />}
-          onClick={e => { e.stopPropagation(); openAdd() }}
-        >
-          Add
-        </Button>
-      </Group>
-
-      {isLoading && <Loader size="xs" />}
-
-      {!isLoading && progressions.length === 0 && (
-        <Text size="xs" c="dimmed">None yet.</Text>
-      )}
-
-      {progressions.map(p => (
-        <UnstyledButton
-          key={p.id as string}
-          onClick={e => { e.stopPropagation(); setViewProgression(p) }}
-        >
-          <Card withBorder radius="sm" p="xs">
-            <Group gap="xs" align="center">
-              <IconList size={14} style={{ flexShrink: 0 }} />
-              <Stack gap={0} style={{ flex: 1 }}>
-                <Text size="sm" fw={500}>{p.name}</Text>
-                <Text size="xs" c="dimmed">{stepCount(p)} step{stepCount(p) !== 1 ? 's' : ''}</Text>
-              </Stack>
-              <Badge variant="outline" size="xs">{p.body.kind}</Badge>
-            </Group>
-          </Card>
-        </UnstyledButton>
-      ))}
-
-      <SaveProgressionModal
-        opened={addOpen}
-        onClose={closeAdd}
-        exercise={exercise}
-      />
-
-      {viewProgression && (
-        <SaveProgressionModal
-          opened={!!viewProgression}
-          onClose={() => setViewProgression(null)}
-          exercise={exercise}
-          progression={viewProgression}
-        />
-      )}
-    </Stack>
-  )
 }
 
 function ExerciseCard({
@@ -180,42 +113,6 @@ function ExerciseCard({
         </Stack>
       </Collapse>
     </Card>
-  )
-}
-
-function DeleteExerciseModal({
-  exercise,
-  onClose,
-}: {
-  exercise: ExerciseDef | null
-  onClose: () => void
-}) {
-  const { mutate, isPending, error } = useDeleteExercise({ onSuccess: onClose })
-
-  return (
-    <Modal
-      opened={!!exercise}
-      onClose={onClose}
-      title="Delete exercise"
-      size="sm"
-    >
-      {exercise && (
-        <Stack>
-          <Text>Delete <strong>{exercise.name}</strong>? All progressions for this exercise will also be deleted.</Text>
-          {error && <Alert color="red">{error.message}</Alert>}
-          <Group justify="flex-end">
-            <Button variant="default" onClick={onClose} disabled={isPending}>Cancel</Button>
-            <Button
-              color="red"
-              loading={isPending}
-              onClick={() => mutate(exercise.id)}
-            >
-              Delete
-            </Button>
-          </Group>
-        </Stack>
-      )}
-    </Modal>
   )
 }
 

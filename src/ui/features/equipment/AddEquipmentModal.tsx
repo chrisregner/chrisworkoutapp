@@ -1,21 +1,15 @@
 import {
-  ActionIcon,
   Alert,
   Button,
-  Checkbox,
-  Fieldset,
-  Group,
   Modal,
-  NumberInput,
-  SegmentedControl,
   Stack,
-  Text,
   TextInput,
   Title,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
-import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { useEffect } from 'react'
+import { EquipmentPiecesSection } from './EquipmentPiecesSection'
+import { EquipmentSettingsSection } from './EquipmentSettingsSection'
 import { useSaveEquipment } from './useSaveEquipment'
 import type { EquipmentDef, Unit } from '../../../domain'
 
@@ -125,72 +119,9 @@ export function AddEquipmentModal({ opened, onClose, equipment }: Props) {
 
           <TextInput label="Notes" placeholder="Optional" {...form.getInputProps('description')} />
 
-          <Fieldset legend="Settings">
-            <Stack gap="sm">
-              <Stack gap={4}>
-                <Text size="sm" fw={500}>Weight unit</Text>
-                <SegmentedControl
-                  data={[
-                    { label: 'kg', value: 'kg' },
-                    { label: 'lb', value: 'lb' },
-                  ]}
-                  {...form.getInputProps('unit')}
-                />
-              </Stack>
+          <EquipmentSettingsSection form={form} />
 
-              <Checkbox
-                label="Stackable"
-                description="Weights add together when multiple pieces are used"
-                {...form.getInputProps('isCombinable', { type: 'checkbox' })}
-              />
-            </Stack>
-          </Fieldset>
-
-          <Fieldset legend="Available weights">
-            <Stack gap="xs">
-              {form.getValues().pieces.map((_: PieceField, i: number) => (
-                <Group key={i} align="flex-end" gap="xs" wrap="nowrap">
-                  <NumberInput
-                    label={i === 0 ? `Weight (${unit})` : undefined}
-                    placeholder="0"
-                    min={0.01}
-                    step={0.5}
-                    decimalScale={2}
-                    style={{ flex: 1 }}
-                    {...form.getInputProps(`pieces.${i}.resistance`)}
-                  />
-                  <NumberInput
-                    label={i === 0 ? 'Count' : undefined}
-                    placeholder="1"
-                    min={1}
-                    step={1}
-                    allowDecimal={false}
-                    style={{ width: 72 }}
-                    {...form.getInputProps(`pieces.${i}.quantity`)}
-                  />
-                  <ActionIcon
-                    variant="subtle"
-                    color="red"
-                    disabled={form.getValues().pieces.length === 1}
-                    onClick={() => form.removeListItem('pieces', i)}
-                    mb={form.errors[`pieces.${i}.resistance`] || form.errors[`pieces.${i}.quantity`] ? 22 : 4}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Group>
-              ))}
-
-              <Button
-                variant="subtle"
-                size="xs"
-                leftSection={<IconPlus size={14} />}
-                onClick={() => form.insertListItem('pieces', { id: undefined, resistance: '', quantity: '1' })}
-                style={{ alignSelf: 'flex-start' }}
-              >
-                Add weight
-              </Button>
-            </Stack>
-          </Fieldset>
+          <EquipmentPiecesSection form={form} unit={unit} />
 
           <Button type="submit" loading={loading} mt="sm">
             Save
