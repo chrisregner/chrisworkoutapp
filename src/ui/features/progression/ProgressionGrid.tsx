@@ -1,5 +1,5 @@
 import { Box, Group, ScrollArea, Text, UnstyledButton } from '@mantine/core'
-import type { ResistanceConfig, SortDimension, SortEntry } from './saveProgressionState'
+import { resistanceTotal, type ResistanceConfig, type SortDimension, type SortEntry } from './saveProgressionState'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-component: grid
@@ -85,6 +85,11 @@ export function ProgressionGrid({
     cellOrder.set(id, i + 1)
   }
 
+  const resistanceByConfig = new Map<string, number>()
+  for (const c of configs) {
+    resistanceByConfig.set(c.id, resistanceTotal(c.source))
+  }
+
   const cellW = 64
   const headerW = 140
 
@@ -118,16 +123,19 @@ export function ProgressionGrid({
               const stepNum = cellOrder.get(cellId)
               const selected = stepNum !== undefined
               const unitLabel = quantifierType === 'reps' ? 'reps' : 's'
+              const resistance = resistanceByConfig.get(row.configId) ?? 0
+              const volume = (resistance || 1) * row.sets * rep
               return (
                 <UnstyledButton
                   key={rep}
-                  aria-label={`${row.resistanceLabel}, ${row.sets} sets, ${rep} ${unitLabel}`}
+                  aria-label={`${row.resistanceLabel}, ${row.sets} sets, ${rep} ${unitLabel}, volume ${volume}`}
                   aria-pressed={selected}
                   onClick={() => !readOnly && onToggleCell(cellId)}
                   style={{
+                    position: 'relative',
                     width: cellW,
                     flexShrink: 0,
-                    height: 40,
+                    height: 48,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -138,8 +146,19 @@ export function ProgressionGrid({
                   }}
                 >
                   {selected && (
-                    <Text size="xs" fw={700} c="white">{stepNum}</Text>
+                    <Text
+                      size="xs"
+                      fw={700}
+                      c="white"
+                      lh={1}
+                      style={{ position: 'absolute', top: 4, left: 4 }}
+                    >
+                      {stepNum}
+                    </Text>
                   )}
+                  <Text size="xs" c={selected ? 'white' : 'dimmed'} lh={1}>
+                    {volume}
+                  </Text>
                 </UnstyledButton>
               )
             })}
