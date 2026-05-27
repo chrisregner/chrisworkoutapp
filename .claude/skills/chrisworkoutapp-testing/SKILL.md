@@ -84,11 +84,15 @@ Not every screen needs all 10. Most need 3-6. Skip categories that don't apply; 
 #### What NOT to test in UI
 
 - Mantine render output — library job
-- TanStack Query internals — library job
+- TanStack Query internals — library job. Never assert which query key was invalidated or which cache entry was removed; assert the *user-visible outcome* (list refreshes, deleted item disappears).
 - Component shallow render w/ mocked services — mocks lie, design leaks
 - Same behavior already covered at domain/persistence/app level — pick one layer
 - Branded type identity / TS-enforced things
 - Pixel-perfect layout — that's visual regression's job (not used here yet)
+
+#### Cache-invalidation behavior in UI tests
+
+Cross-screen cache invalidation (e.g. deleting exercise X should make X's progressions disappear) **is** worth testing — but test the *behavior*, not the mechanism. RTL integration tests over real PGLite exercise the full `mutation → invalidateQueries / removeQueries → refetch → re-render` path automatically. A test that creates exercise X with a progression, deletes X, and asserts the progression list is empty covers the cascade-delete cache bug without ever touching query keys.
 
 #### Pure validators
 

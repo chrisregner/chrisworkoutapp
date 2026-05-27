@@ -42,7 +42,11 @@ src/
 ├── ui/             React + Mantine — knows app services, not DB
 │   ├── components/ reusable presentational
 │   ├── features/   one folder per feature (equipment/, workout/, programs/)
-│   │   └── <feature>/ Page + child components + use<Feature>.ts hook(s)
+│   │   └── <feature>/
+│   │       ├── <Feature>Page.tsx / <Feature>Modal.tsx / etc.
+│   │       ├── <feature>Keys.ts          query key factory + queryOptions builders
+│   │       ├── <feature>Invalidations.ts cross-entity invalidation helpers
+│   │       └── use<Feature>.ts           hook(s)
 │   ├── hooks/      cross-cutting
 │   ├── providers/  Context providers (QueryProvider, DbProvider,
 │   │               AppServicesProvider)
@@ -117,11 +121,64 @@ async startNext(programId: ProgramId): Promise<Session> {
 
 **Out:** direct DB access (go through service or repo via hook), domain logic reimplementation (call domain fns), business-rule validation (use domain validators; UI does only field-level "is this a number").
 
-Hook shape:
+#### TanStack Query conventions
+
+Every feature has two thin companion files:
+
+**`<feature>Keys.ts`** — hierarchical key factory + co-located `queryOptions` builders (v5 API). Keys are typed `as const` tuples:
+
 ```typescript
-export function useStartNextWorkout(programId: ProgramId) {
-  const service = useWorkoutSessionService()
-  return useMutation({ mutationFn: () => service.startNext(programId) })
+// equipmentKeys.ts
+import { queryOptions } from '@tanstack/react-query'
+import type { DefinitionsService } from '../../../app'
+
+export const equipmentKeys = {
+  all: ['equipment'] as const,
+  lists: () => [...equipmentKeys.all, 'list'] as const,
+  list: () => [...equipmentKeys.lists()] as const,
+}
+
+export const equipmentQueries = {
+  list: (service: DefinitionsService) =>
+    queryOptions({
+      queryKey: equipmentKeys.list(),
+      queryFn: () => service.listEquipment(),
+    }),
+}
+```
+
+**`<feature>Invalidations.ts`** — named helper fns that encapsulate cross-entity rules. Hooks call these; hooks never touch `invalidateQueries` / `removeQueries` directly:
+
+```typescript
+// exerciseInvalidations.ts
+export function invalidateExerciseAfterDelete(qc: QueryClient, id: string) {
+  void qc.invalidateQueries({ queryKey: exerciseKeys.all })
+  // ON DELETE CASCADE (schema.ts:86) — evict orphaned progression cache
+  void qc.removeQueries({ queryKey: progressionKeys.byExercise(id) })
+}
+```
+
+Use `removeQueries` (not `invalidateQueries`) when a cascade-delete or FK wipes the underlying DB rows — this evicts phantom cache entries immediately. Use `invalidateQueries` for stale-but-recoverable data.
+
+`QueryProvider` defaults: `mutations: { retry: 0 }` — PGLite mutations are synchronous SQL; retrying a failed mutation masks errors.
+
+Hook shape using the factory:
+```typescript
+export function useEquipmentList() {
+  const service = useDefinitions()
+  return useQuery(equipmentQueries.list(service))
+}
+
+export function useDeleteExercise(options?: { onSuccess?: () => void }) {
+  const service = useDefinitions()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => service.deleteExercise(id),
+    onSuccess: (_, id) => {
+      invalidateExerciseAfterDelete(queryClient, id)
+      options?.onSuccess?.()
+    },
+  })
 }
 ```
 
