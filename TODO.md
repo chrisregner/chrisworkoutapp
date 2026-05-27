@@ -14,6 +14,9 @@
 
 ## Goal 2: Program Definition
 - Spec: [specs/program-definition.md](specs/program-definition.md) — 4 increments (domain → persistence → service → UI)
+- timers:
+  - warmup/cooldown/main timer group
+  - exercises might want to be tracked individually, but warmup/cooldown might not be
 
 ## Goal 3: Exercise Flow
 
