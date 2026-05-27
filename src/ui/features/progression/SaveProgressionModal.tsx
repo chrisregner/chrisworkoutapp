@@ -110,7 +110,7 @@ function deriveConfigsFromProgression(
     }))
     const key = sourceKey(src)
     if (!seen.has(key)) {
-      const id = src.length === 0 ? UNLOADED_CONFIG_ID : newConfigId()
+      const id = src.length === 0 ? UNLOADED_CONFIG_ID : key
       seen.set(key, { id, label: labelForSource(src, equipment), source: src })
     }
   }
@@ -199,12 +199,13 @@ function buildInitialState(exercise: ExerciseDef, progression?: ProgressionDef) 
 export function SaveProgressionModal({ opened, onClose, exercise, progression }: Props) {
   const [mode, setMode] = useState<'view' | 'edit'>(progression ? 'view' : 'edit')
 
-  const [name, setName] = useState(() => buildInitialState(exercise, progression).name)
-  const [setsValues, setSetsValues] = useState<number[]>(() => buildInitialState(exercise, progression).setsValues)
-  const [repValues, setRepValues] = useState<number[]>(() => buildInitialState(exercise, progression).repValues)
-  const [configs, setConfigs] = useState<ResistanceConfig[]>(() => buildInitialState(exercise, progression).configs)
-  const [selectedCells, setSelectedCells] = useState<string[]>(() => buildInitialState(exercise, progression).selectedCells)
-  const [sortOrder, setSortOrder] = useState<[SortEntry, SortEntry, SortEntry]>(() => buildInitialState(exercise, progression).sortOrder)
+  const [initial] = useState(() => buildInitialState(exercise, progression))
+  const [name, setName] = useState(initial.name)
+  const [setsValues, setSetsValues] = useState<number[]>(initial.setsValues)
+  const [repValues, setRepValues] = useState<number[]>(initial.repValues)
+  const [configs, setConfigs] = useState<ResistanceConfig[]>(initial.configs)
+  const [selectedCells, setSelectedCells] = useState<string[]>(initial.selectedCells)
+  const [sortOrder, setSortOrder] = useState<[SortEntry, SortEntry, SortEntry]>(initial.sortOrder)
 
   const readOnly = mode === 'view'
 

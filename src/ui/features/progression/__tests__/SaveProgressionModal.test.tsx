@@ -37,6 +37,9 @@
 //   saved pieces show as selected piece buttons
 // - when opened on a progression for combinable equipment, the saved
 //   resistanceSource is rendered as a config chip (no Remove control in view)
+// - regression: when the modal is mounted-already-opened (production view
+//   pattern in ProgressionsSection), step cells still render for
+//   non-combinable equipment
 //
 // Edit mode round-trip — changes to grid/equipment persist
 // - when editing a progression and adding a new cell, Save persists the
@@ -93,6 +96,33 @@ function ModalHarness({
         exercise={exercise}
         progression={progression}
       />
+    </>
+  )
+}
+
+/** Mirrors ProgressionsSection's view-modal pattern: the modal is mounted
+ *  conditionally and is already opened on mount (no closed → opened
+ *  transition). Regression coverage for the case where the mount-time
+ *  initialization path is the only one that runs. */
+function ConditionallyMountedModalHarness({
+  exercise,
+  progression,
+}: {
+  exercise: ExerciseDef
+  progression: ProgressionDef
+}) {
+  const [view, setView] = useState<ProgressionDef | null>(null)
+  return (
+    <>
+      <Button onClick={() => setView(progression)}>Open</Button>
+      {view && (
+        <SaveProgressionModal
+          opened={!!view}
+          onClose={() => setView(null)}
+          exercise={exercise}
+          progression={view}
+        />
+      )}
     </>
   )
 }
@@ -538,6 +568,45 @@ describe('SaveProgressionModal', () => {
 
     // The grid renders only the saved (16kg) row and its cell is selected.
     const cell = screen.getByRole('button', { name: /16kg, 3 sets, 5 reps/i })
+    expect(cell).toHaveAttribute('aria-pressed', 'true')
+    expect(cell).toHaveTextContent('1')
+  })
+
+  it('regression: when modal mounts already opened (production view pattern), selected cells render for non-combinable equipment', async () => {
+    // The view modal in ProgressionsSection mounts conditionally with
+    // opened=true. Bug: random per-call config IDs in deriveConfigsFromProgression
+    // caused selectedCells to reference IDs that didn't match the rendered
+    // configs, and the cell-filter effect wiped them out. The bodyweight case
+    // uses the constant UNLOADED_CONFIG_ID so does not reproduce; non-combinable
+    // equipment does.
+    const { db, seed } = await seedFixtures()
+    const piece16 = seed.equipmentFixed.pieces.find(p => (p.resistance as number) === 16)!
+    const created = await seed.service.createProgression({
+      name: 'KB 16 mounted',
+      exerciseId: seed.exerciseFixed.id as string,
+      body: {
+        kind: 'linear',
+        volumeSets: [{
+          sets: 3,
+          quantifierValue: 5,
+          resistanceSource: [{
+            piece: {
+              pieceId: piece16.id as string,
+              resistance: piece16.resistance as number,
+              totalQuantity: piece16.quantity as number,
+            },
+            quantityUsed: piece16.quantity as number,
+          }],
+        }],
+      },
+    })
+    const { user } = await renderWithProviders(
+      <ConditionallyMountedModalHarness exercise={seed.exerciseFixed} progression={created} />,
+      { db },
+    )
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+
+    const cell = await screen.findByRole('button', { name: /16kg, 3 sets, 5 reps/i })
     expect(cell).toHaveAttribute('aria-pressed', 'true')
     expect(cell).toHaveTextContent('1')
   })
