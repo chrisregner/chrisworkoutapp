@@ -353,6 +353,53 @@ describe('makeProgressionDef heavyLight', () => {
   })
 })
 
+describe('makeProgressionDef heavyLight cell reuse', () => {
+  it('accepts a body where the same (resistance, sets, reps) tuple appears as heavy in one pair and light in another', () => {
+    const eq = makeEquipmentDef({
+      id: u(1),
+      name: 'Plates',
+      isCombinable: true,
+      unit: 'kg',
+      pieces: [
+        { id: u(10), resistance: 5, quantity: 4, position: 0 },
+        { id: u(11), resistance: 10, quantity: 2, position: 1 },
+        { id: u(12), resistance: 15, quantity: 1, position: 2 },
+      ],
+    })
+    const ex = buildExercise(eq)
+    const snapPiece = (pieceId: string, resistance: number, qty: number) => ({
+      pieceId, resistance, totalQuantity: qty,
+    })
+    // Pair 1: heavy=10kg×3×5 (vol=150), light=5kg×3×11 (vol=165)   heavy.res 10>5 ✓  light.vol 165>150 ✓
+    // Pair 2: heavy=15kg×3×3 (vol=135), light=10kg×3×5 (vol=150)   heavy.res 15>10 ✓  light.vol 150>135 ✓
+    // The 10kg×3×5 cell is heavy.resistanceSource of pair 1 AND light.resistanceSource of pair 2.
+    const prog = makeProgressionDef({
+      id: u(3),
+      name: 'HL Reuse',
+      exercise: ex,
+      body: {
+        kind: 'heavyLight',
+        volumeSets: [
+          {
+            heavy: { sets: 3, quantifierValue: 5, resistanceSource: [{ piece: snapPiece(u(11), 10, 2), quantityUsed: 1 }] },
+            light: { sets: 3, quantifierValue: 11, resistanceSource: [{ piece: snapPiece(u(10), 5, 4), quantityUsed: 1 }] },
+          },
+          {
+            heavy: { sets: 3, quantifierValue: 3, resistanceSource: [{ piece: snapPiece(u(12), 15, 1), quantityUsed: 1 }] },
+            light: { sets: 3, quantifierValue: 5, resistanceSource: [{ piece: snapPiece(u(11), 10, 2), quantityUsed: 1 }] },
+          },
+        ],
+        plannedSets: [3],
+        plannedReps: [3, 5, 11],
+      },
+    })
+    expect(prog.body.kind).toBe('heavyLight')
+    if (prog.body.kind === 'heavyLight') {
+      expect(prog.body.volumeSets).toHaveLength(2)
+    }
+  })
+})
+
 describe('volumeOf / totalResistance helpers', () => {
   it('totalResistance sums piece.resistance * quantityUsed', () => {
     const eq = buildEquipment()
