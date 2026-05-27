@@ -14,7 +14,7 @@ import { DeleteExerciseModal } from '../DeleteExerciseModal'
 import { ExerciseListPage } from '../ExerciseListPage'
 import { renderWithProviders } from '../../../testing/renderWithProviders'
 import { DefinitionsService } from '../../../../app'
-import { makeQuantifierRule, type ExerciseDef } from '../../../../domain'
+import { type ExerciseDef } from '../../../../domain'
 import { makeTestDb } from '../../../../persistence/testing'
 
 async function seedExercise(
@@ -25,7 +25,6 @@ async function seedExercise(
   return service.createExercise({
     name,
     quantifierType: 'reps',
-    quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 8, max: 12 }),
     equipmentId: null,
   })
 }

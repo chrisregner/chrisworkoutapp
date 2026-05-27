@@ -4,6 +4,8 @@ import type { UseFormReturnType } from '@mantine/form'
 type EquipmentLike = {
   id: string
   isCombinable: boolean
+  unit: string
+  pieces: readonly { id: string; resistance: number; quantity: number }[]
 }
 
 type Props = {

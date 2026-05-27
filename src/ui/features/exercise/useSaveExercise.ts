@@ -1,13 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDefinitions } from '../../providers/AppServicesProvider'
-import type { QuantifierRule } from '../../../domain'
 import { invalidateExerciseAfterWrite } from './exerciseInvalidations'
 
 export type SaveExerciseInput = {
   name: string
   description?: string
   quantifierType: 'reps' | 'seconds'
-  quantifierRule: QuantifierRule
   equipmentId: string | null
   shouldCombineResistance?: boolean
 }

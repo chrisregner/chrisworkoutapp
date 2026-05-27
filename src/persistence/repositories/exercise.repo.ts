@@ -62,7 +62,6 @@ export async function saveExerciseDef(db: Db, def: ExerciseDef): Promise<void> {
         name: row.name,
         description: row.description,
         quantifierType: row.quantifierType,
-        quantifierRule: row.quantifierRule,
         resistanceEquipmentId: row.resistanceEquipmentId,
         shouldCombineResistance: row.shouldCombineResistance,
       },

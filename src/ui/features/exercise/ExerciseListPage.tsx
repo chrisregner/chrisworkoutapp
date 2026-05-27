@@ -20,13 +20,7 @@ import { useExerciseList } from './useExerciseList'
 import { SaveExerciseModal } from './SaveExerciseModal'
 import { ProgressionsSection } from './ProgressionsSection'
 import { DeleteExerciseModal } from './DeleteExerciseModal'
-import type { ExerciseDef, QuantifierRule } from '../../../domain'
-
-function formatRule(rule: QuantifierRule, type: string): string {
-  const unit = type === 'reps' ? 'reps' : 's'
-  if (rule.kind === 'min-max') return `${rule.min}–${rule.max} ${unit}`
-  return `${rule.values.join(', ')} ${unit}`
-}
+import type { ExerciseDef } from '../../../domain'
 
 function ExerciseCard({
   exercise,
@@ -48,9 +42,6 @@ function ExerciseCard({
             {exercise.description && (
               <Text size="sm" c="dimmed">{exercise.description}</Text>
             )}
-            <Text size="sm" c="dimmed">
-              {formatRule(exercise.quantifierRule, exercise.quantifierType)}
-            </Text>
           </Stack>
           <Group gap="xs" wrap="nowrap" align="center">
             <Badge variant="light" size="sm">{exercise.quantifierType}</Badge>
@@ -62,11 +53,8 @@ function ExerciseCard({
         <Divider />
         <Stack gap="xs" p="md">
           <Stack gap={4}>
-            <Text size="xs" c="dimmed" fw={500}>Quantifier</Text>
-            <Text size="sm">
-              {formatRule(exercise.quantifierRule, exercise.quantifierType)}{' '}
-              <Text span c="dimmed" size="sm">({exercise.quantifierType})</Text>
-            </Text>
+            <Text size="xs" c="dimmed" fw={500}>Tracked by</Text>
+            <Text size="sm">{exercise.quantifierType}</Text>
           </Stack>
           <Stack gap={4}>
             <Text size="xs" c="dimmed" fw={500}>Equipment</Text>

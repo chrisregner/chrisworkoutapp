@@ -16,23 +16,17 @@ import { screen, within } from '@testing-library/react'
 import { ExerciseListPage } from '../ExerciseListPage'
 import { renderWithProviders } from '../../../testing/renderWithProviders'
 import { DefinitionsService } from '../../../../app'
-import { makeQuantifierRule } from '../../../../domain'
 import { makeTestDb } from '../../../../persistence/testing'
 
 async function seedExercise(
   db: Awaited<ReturnType<typeof makeTestDb>>,
-  overrides?: { name?: string; description?: string; min?: number; max?: number },
+  overrides?: { name?: string; description?: string },
 ) {
   const service = new DefinitionsService(db)
   return service.createExercise({
     name: overrides?.name ?? 'Romanian Deadlift',
     description: overrides?.description,
     quantifierType: 'reps',
-    quantifierRule: makeQuantifierRule({
-      kind: 'min-max',
-      min: overrides?.min ?? 5,
-      max: overrides?.max ?? 10,
-    }),
     equipmentId: null,
   })
 }
@@ -49,7 +43,6 @@ async function seedEquipmentAndExercise(db: Awaited<ReturnType<typeof makeTestDb
     name: 'Goblet Squat',
     description: 'controlled tempo',
     quantifierType: 'reps',
-    quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 6, max: 8 }),
     equipmentId: eq.id as string,
   })
   return { eq, ex }
@@ -63,20 +56,15 @@ describe('ExerciseListPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders each exercise with its name and quantifier summary', async () => {
+  it('renders each exercise with its name', async () => {
     const db = await makeTestDb()
-    await seedExercise(db, { name: 'Romanian Deadlift', min: 5, max: 10 })
-    await seedExercise(db, { name: 'Front Squat', min: 3, max: 5 })
+    await seedExercise(db, { name: 'Romanian Deadlift' })
+    await seedExercise(db, { name: 'Front Squat' })
 
     await renderWithProviders(<ExerciseListPage />, { db })
 
     expect(await screen.findByText('Romanian Deadlift')).toBeInTheDocument()
     expect(screen.getByText('Front Squat')).toBeInTheDocument()
-    // Quantifier summary text appears for each card. (Mantine's Collapse keeps
-    // the collapsed body in the DOM, so the summary may appear more than once
-    // per card — assert "at least one match" instead of "exactly one".)
-    expect(screen.getAllByText(/5–10 reps/).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText(/3–5 reps/).length).toBeGreaterThanOrEqual(1)
   })
 
   it('reflects directly-seeded exercises on first render (persistence boundary)', async () => {

@@ -13,7 +13,6 @@ import { renderWithProviders } from '../../../testing/renderWithProviders'
 import { makeTestDb } from '../../../../persistence/testing'
 import { DefinitionsService } from '../../../../app'
 import { listEquipmentDefs } from '../../../../persistence/repositories'
-import { makeQuantifierRule } from '../../../../domain'
 import { DeleteEquipmentModal } from '../DeleteEquipmentModal'
 import type { EquipmentDef } from '../../../../domain'
 
@@ -99,7 +98,6 @@ describe('DeleteEquipmentModal', () => {
     await service.createExercise({
       name: 'Press',
       quantifierType: 'reps',
-      quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 5, max: 10 }),
       equipmentId: eq.id as string,
       shouldCombineResistance: false,
     })

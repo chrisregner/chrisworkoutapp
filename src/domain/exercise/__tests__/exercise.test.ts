@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { InvariantViolationError } from '../../primitives'
 import { makeEquipmentDef, type EquipmentDef } from '../../equipment'
-import { makeExerciseDef, makeQuantifierRule } from '..'
+import { makeExerciseDef } from '..'
 
 const u = (n: number) => `00000000-0000-0000-0000-${n.toString().padStart(12, '0')}`
 
@@ -25,15 +25,12 @@ function nonCombinableEq(): EquipmentDef {
   })
 }
 
-const rule = makeQuantifierRule({ kind: 'min-max', min: 1, max: 20 })
-
 describe('makeExerciseDef name guard', () => {
   it('builds with a valid non-empty name', () => {
     const ex = makeExerciseDef({
       id: u(3),
       name: 'Squat',
       quantifierType: 'reps',
-      quantifierRule: rule,
       equipment: null,
     })
     expect(ex.name).toBe('Squat')
@@ -45,7 +42,6 @@ describe('makeExerciseDef name guard', () => {
         id: u(3),
         name: '',
         quantifierType: 'reps',
-        quantifierRule: rule,
         equipment: null,
       }),
     ).toThrow(InvariantViolationError)
@@ -57,7 +53,6 @@ describe('makeExerciseDef name guard', () => {
         id: u(3),
         name: '   ',
         quantifierType: 'reps',
-        quantifierRule: rule,
         equipment: null,
       }),
     ).toThrow(InvariantViolationError)
@@ -65,17 +60,14 @@ describe('makeExerciseDef name guard', () => {
 })
 
 describe('makeExerciseDef quantifier wiring', () => {
-  it('preserves the quantifierType and quantifierRule passed in', () => {
-    const r = makeQuantifierRule({ kind: 'allowed-values', values: [5, 8, 10] })
+  it('preserves the quantifierType passed in', () => {
     const ex = makeExerciseDef({
       id: u(3),
       name: 'Plank',
       quantifierType: 'seconds',
-      quantifierRule: r,
       equipment: null,
     })
     expect(ex.quantifierType).toBe('seconds')
-    expect(ex.quantifierRule).toBe(r)
   })
 })
 
@@ -85,7 +77,6 @@ describe('makeExerciseDef shouldCombineResistance cross-invariant', () => {
       id: u(3),
       name: 'Squat',
       quantifierType: 'reps',
-      quantifierRule: rule,
       equipment: combinableEq(),
     })
     expect(ex.shouldCombineResistance).toBe(false)
@@ -96,7 +87,6 @@ describe('makeExerciseDef shouldCombineResistance cross-invariant', () => {
       id: u(3),
       name: 'Squat',
       quantifierType: 'reps',
-      quantifierRule: rule,
       equipment: combinableEq(),
       shouldCombineResistance: true,
     })
@@ -108,7 +98,6 @@ describe('makeExerciseDef shouldCombineResistance cross-invariant', () => {
       id: u(3),
       name: 'Pushup',
       quantifierType: 'reps',
-      quantifierRule: rule,
       equipment: null,
       shouldCombineResistance: false,
     })
@@ -122,7 +111,6 @@ describe('makeExerciseDef shouldCombineResistance cross-invariant', () => {
         id: u(3),
         name: 'Pushup',
         quantifierType: 'reps',
-        quantifierRule: rule,
         equipment: null,
         shouldCombineResistance: true,
       }),
@@ -135,7 +123,6 @@ describe('makeExerciseDef shouldCombineResistance cross-invariant', () => {
         id: u(3),
         name: 'KB Swing',
         quantifierType: 'reps',
-        quantifierRule: rule,
         equipment: nonCombinableEq(),
         shouldCombineResistance: true,
       }),
@@ -147,7 +134,6 @@ describe('makeExerciseDef shouldCombineResistance cross-invariant', () => {
       id: u(3),
       name: 'KB Swing',
       quantifierType: 'reps',
-      quantifierRule: rule,
       equipment: nonCombinableEq(),
       shouldCombineResistance: false,
     })
@@ -162,7 +148,6 @@ describe('makeExerciseDef id', () => {
         id: 'not-a-uuid',
         name: 'Squat',
         quantifierType: 'reps',
-        quantifierRule: rule,
         equipment: null,
       }),
     ).toThrow(InvariantViolationError)

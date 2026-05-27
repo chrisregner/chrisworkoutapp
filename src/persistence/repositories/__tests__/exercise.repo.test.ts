@@ -7,7 +7,6 @@ import {
   EntityNotFoundError,
   makeEquipmentDef,
   makeExerciseDef,
-  makeQuantifierRule,
   type EquipmentDef,
 } from '../../../domain'
 import { newId } from '../../../shared'
@@ -36,7 +35,6 @@ describe('exercise.repo', () => {
       name: 'Goblet Squat',
       description: 'hold one DB',
       quantifierType: 'reps',
-      quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 5, max: 10 }),
       equipment,
       shouldCombineResistance: false,
     })
@@ -48,7 +46,6 @@ describe('exercise.repo', () => {
     expect(found!.name).toBe('Goblet Squat')
     expect(found!.description).toBe('hold one DB')
     expect(found!.quantifierType).toBe('reps')
-    expect(found!.quantifierRule).toEqual(exercise.quantifierRule)
     expect(found!.equipment).not.toBeNull()
     expect(found!.equipment!.id).toBe(equipment.id)
     expect(found!.equipment!.pieces).toHaveLength(2)
@@ -60,7 +57,6 @@ describe('exercise.repo', () => {
       id: newId(),
       name: 'Push-up',
       quantifierType: 'reps',
-      quantifierRule: makeQuantifierRule({ kind: 'allowed-values', values: [5, 10, 15] }),
       equipment: null,
     })
     await saveExerciseDef(db, exercise)
@@ -68,7 +64,6 @@ describe('exercise.repo', () => {
     const found = await findExerciseDef(db, exercise.id)
     expect(found).not.toBeNull()
     expect(found!.equipment).toBeNull()
-    expect(found!.quantifierRule).toEqual(exercise.quantifierRule)
     expect(found!.shouldCombineResistance).toBe(false)
   })
 
@@ -87,15 +82,10 @@ describe('exercise.repo', () => {
       id: newId(),
       name: 'Curl',
       quantifierType: 'reps',
-      quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 5, max: 12 }),
       equipment,
     })
     await saveExerciseDef(db, exercise)
 
-    // Simulate a dangling reference: hard-delete the equipment row out from
-    // under the exercise. The FK uses ON DELETE RESTRICT, so we briefly
-    // suspend trigger/constraint enforcement to create the inconsistent
-    // state we want to assert against.
     await db.execute(sql`SET session_replication_role = 'replica'`)
     await db.execute(sql`DELETE FROM equipment_pieces WHERE equipment_def_id = ${equipment.id}`)
     await db.execute(sql`DELETE FROM equipment_defs WHERE id = ${equipment.id}`)
@@ -103,4 +93,5 @@ describe('exercise.repo', () => {
 
     await expect(findExerciseDef(db, exercise.id)).rejects.toBeInstanceOf(EntityNotFoundError)
   })
+
 })

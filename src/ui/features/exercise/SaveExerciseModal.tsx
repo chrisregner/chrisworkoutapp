@@ -11,17 +11,12 @@ import { useSaveExercise } from './useSaveExercise'
 import { useEquipmentList } from '../equipment/useEquipmentList'
 import { CountingSection } from './CountingSection'
 import { EquipmentSection } from './EquipmentSection'
-import { InvariantViolationError, makeQuantifierRule } from '../../../domain'
 import type { ExerciseDef, QuantifierType } from '../../../domain'
 
 type FormValues = {
   name: string
   description: string
   quantifierType: QuantifierType
-  quantifierRuleKind: 'min-max' | 'allowed-values'
-  minMaxMin: string
-  minMaxMax: string
-  allowedValues: string[]
   equipmentId: string | null
   shouldCombineResistance: boolean
 }
@@ -34,15 +29,10 @@ type Props = {
 
 function buildInitialValues(exercise?: ExerciseDef): FormValues {
   if (exercise) {
-    const rule = exercise.quantifierRule
     return {
       name: exercise.name,
       description: exercise.description ?? '',
       quantifierType: exercise.quantifierType,
-      quantifierRuleKind: rule.kind,
-      minMaxMin: rule.kind === 'min-max' ? String(rule.min) : '1',
-      minMaxMax: rule.kind === 'min-max' ? String(rule.max) : '10',
-      allowedValues: rule.kind === 'allowed-values' ? rule.values.map(String) : [''],
       equipmentId: exercise.equipment ? exercise.equipment.id : null,
       shouldCombineResistance: exercise.shouldCombineResistance,
     }
@@ -51,10 +41,6 @@ function buildInitialValues(exercise?: ExerciseDef): FormValues {
     name: '',
     description: '',
     quantifierType: 'reps',
-    quantifierRuleKind: 'min-max',
-    minMaxMin: '1',
-    minMaxMax: '10',
-    allowedValues: [''],
     equipmentId: null,
     shouldCombineResistance: false,
   }
@@ -69,18 +55,6 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
     initialValues: buildInitialValues(exercise),
     validate: {
       name: (v: string) => (v.trim() ? null : 'Name required'),
-      minMaxMin: (v: string, values: FormValues) => {
-        if (values.quantifierRuleKind !== 'min-max') return null
-        const n = Number(v)
-        return !v || isNaN(n) || n <= 0 || !Number.isInteger(n) ? 'Must be whole number > 0' : null
-      },
-      minMaxMax: (v: string, values: FormValues) => {
-        if (values.quantifierRuleKind !== 'min-max') return null
-        const n = Number(v)
-        if (!v || isNaN(n) || n <= 0 || !Number.isInteger(n)) return 'Must be whole number > 0'
-        if (Number(values.minMaxMin) > n) return 'Must be ≥ min'
-        return null
-      },
     },
   })
 
@@ -106,35 +80,10 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
   function handleSubmit(values: FormValues) {
     setSubmitError(null)
 
-    if (values.quantifierRuleKind === 'allowed-values') {
-      let hasInvalid = false
-      values.allowedValues.forEach((v, i) => {
-        const n = Number(v)
-        if (!v || isNaN(n) || n <= 0 || !Number.isInteger(n)) {
-          form.setFieldError(`allowedValues.${i}`, 'Must be whole number > 0')
-          hasInvalid = true
-        }
-      })
-      if (hasInvalid) return
-    }
-
-    let quantifierRule
-    try {
-      quantifierRule = makeQuantifierRule(
-        values.quantifierRuleKind === 'min-max'
-          ? { kind: 'min-max', min: Number(values.minMaxMin), max: Number(values.minMaxMax) }
-          : { kind: 'allowed-values', values: values.allowedValues.map(Number) },
-      )
-    } catch (err) {
-      setSubmitError(err instanceof InvariantViolationError ? err.message : String(err))
-      return
-    }
-
     const input = {
       name: values.name.trim(),
       description: values.description.trim() || undefined,
       quantifierType: values.quantifierType,
-      quantifierRule,
       equipmentId: values.equipmentId,
       shouldCombineResistance: values.shouldCombineResistance,
     }
@@ -169,14 +118,14 @@ export function SaveExerciseModal({ opened, onClose, exercise }: Props) {
       <form onSubmit={form.onSubmit(handleSubmit)}>
         <Stack gap="md">
           {(error || submitError) && (
-            <Alert color="red">{submitError ?? error?.message}</Alert>
+            <Alert color="red">{submitError ?? (error ? error.message : null)}</Alert>
           )}
 
           <TextInput label="Name" placeholder="e.g. Romanian Deadlift" {...form.getInputProps('name')} />
 
           <TextInput label="Notes" placeholder="Optional" {...form.getInputProps('description')} />
 
-          <CountingSection form={form} values={values} />
+          <CountingSection form={form} />
 
           <EquipmentSection
             form={form}

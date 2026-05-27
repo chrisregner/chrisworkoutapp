@@ -7,7 +7,6 @@ export type {
   NewExerciseDefRow,
   ProgressionDefRow,
   NewProgressionDefRow,
-  QuantifierRulePersisted,
   ProgressionBodyPersisted,
   EquipmentPieceSnapshotPersisted,
   VolumeSetPersisted,

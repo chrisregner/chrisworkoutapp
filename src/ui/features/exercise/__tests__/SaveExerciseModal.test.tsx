@@ -4,13 +4,9 @@
  *  - Happy path (create): when a valid name is submitted, the modal calls onClose and the exercise persists.
  *  - Happy path (edit): when opened in edit mode, fields are pre-filled and submitting updates the exercise.
  *  - Validation: when the name is empty, submitting shows a "Name required" error and does NOT close.
- *  - Validation: when min > max in min-max mode, submitting shows a "Must be ≥ min" error and does NOT close.
- *  - Validation: when an allowed-values entry is empty, submitting shows a per-entry validation error.
  *  - Equipment selection: when equipment is selected, the "Add weights together" option appears.
- *  - Error state: when the smart constructor rejects the input (unsorted allowed-values), a readable Alert appears and the modal stays open.
  *  - Persistence boundary: reopening the modal after closing resets the form back to defaults (no leaked dirty state).
  *  - CountingSection: switching Track by from reps to seconds persists quantifierType='seconds'.
- *  - CountingSection: switching Target type from range to specific values and entering one valid value persists an allowed-values rule.
  *  - EquipmentSection: after selecting a combinable equipment and enabling combine, deselecting the equipment hides the combine toggle and resets shouldCombineResistance to false on save.
  */
 
@@ -20,7 +16,6 @@ import { SaveExerciseModal } from '../SaveExerciseModal'
 import { ExerciseListPage } from '../ExerciseListPage'
 import { renderWithProviders } from '../../../testing/renderWithProviders'
 import { DefinitionsService } from '../../../../app'
-import { makeQuantifierRule } from '../../../../domain'
 import { makeTestDb } from '../../../../persistence/testing'
 
 function noop() {}
@@ -55,7 +50,6 @@ describe('SaveExerciseModal', () => {
     const created = await service.createExercise({
       name: 'Old Name',
       quantifierType: 'reps',
-      quantifierRule: makeQuantifierRule({ kind: 'min-max', min: 5, max: 8 }),
       equipmentId: null,
     })
 
@@ -96,48 +90,6 @@ describe('SaveExerciseModal', () => {
     expect(closed).toBe(false)
   })
 
-  it('shows a min/max validation error and stays open when min > max', async () => {
-    let closed = false
-    const { user } = await renderWithProviders(
-      <SaveExerciseModal opened onClose={() => { closed = true }} />,
-    )
-
-    const dialog = await getDialog()
-    await user.type(within(dialog).getByLabelText(/name/i), 'Bad Range')
-
-    const minInput = within(dialog).getByLabelText(/minimum/i) as HTMLInputElement
-    const maxInput = within(dialog).getByLabelText(/maximum/i) as HTMLInputElement
-    await user.clear(minInput)
-    await user.type(minInput, '10')
-    await user.clear(maxInput)
-    await user.type(maxInput, '5')
-
-    await user.click(within(dialog).getByRole('button', { name: /save/i }))
-
-    expect(await within(dialog).findByText(/must be ≥ min/i)).toBeInTheDocument()
-    expect(closed).toBe(false)
-  })
-
-  it('shows a per-entry error when an allowed-values entry is empty', async () => {
-    let closed = false
-    const { user } = await renderWithProviders(
-      <SaveExerciseModal opened onClose={() => { closed = true }} />,
-    )
-
-    const dialog = await getDialog()
-    await user.type(within(dialog).getByLabelText(/name/i), 'Allowed Values Test')
-
-    // Switch to allowed-values mode.
-    await user.click(within(dialog).getByRole('radio', { name: /specific values/i }))
-
-    await user.click(within(dialog).getByRole('button', { name: /save/i }))
-
-    expect(
-      await within(dialog).findByText(/must be whole number > 0/i),
-    ).toBeInTheDocument()
-    expect(closed).toBe(false)
-  })
-
   it('shows the "Add weights together" option once a combinable equipment is selected', async () => {
     const db = await makeTestDb()
     const service = new DefinitionsService(db)
@@ -168,34 +120,6 @@ describe('SaveExerciseModal', () => {
     ).toBeInTheDocument()
   })
 
-  it('surfaces a domain error when allowed-values are not sorted ascending', async () => {
-    let closed = false
-    const { user } = await renderWithProviders(
-      <SaveExerciseModal opened onClose={() => { closed = true }} />,
-    )
-    const dialog = await getDialog()
-
-    await user.type(within(dialog).getByLabelText(/name/i), 'Bad Targets')
-
-    // Switch to allowed-values mode.
-    await user.click(within(dialog).getByRole('radio', { name: /specific values/i }))
-
-    // Add a second entry so we have two slots to fill.
-    await user.click(within(dialog).getByRole('button', { name: /add option/i }))
-
-    const valueInputs = within(dialog).getAllByPlaceholderText('5')
-    expect(valueInputs.length).toBe(2)
-    // Enter 5 then 3 — unsorted, violates smart constructor invariant.
-    await user.type(valueInputs[0], '5')
-    await user.type(valueInputs[1], '3')
-
-    await user.click(within(dialog).getByRole('button', { name: /save/i }))
-
-    const alert = await within(dialog).findByRole('alert')
-    expect(alert).toBeInTheDocument()
-    expect(closed).toBe(false)
-  })
-
   it('switching Track by from reps to seconds persists quantifierType="seconds"', async () => {
     const db = await makeTestDb()
     let closed = false
@@ -213,29 +137,6 @@ describe('SaveExerciseModal', () => {
     const service = new DefinitionsService(db)
     const created = (await service.listExercises()).find(e => e.name === 'Plank')!
     expect(created.quantifierType).toBe('seconds')
-  })
-
-  it('switching Target type to specific values and entering a valid value persists an allowed-values rule', async () => {
-    const db = await makeTestDb()
-    let closed = false
-    const { user } = await renderWithProviders(
-      <SaveExerciseModal opened onClose={() => { closed = true }} />,
-      { db },
-    )
-
-    const dialog = await getDialog()
-    await user.type(within(dialog).getByLabelText(/name/i), 'Triple')
-    await user.click(within(dialog).getByRole('radio', { name: /specific values/i }))
-    const firstInput = within(dialog).getByPlaceholderText('5')
-    await user.type(firstInput, '3')
-    await user.click(within(dialog).getByRole('button', { name: /save/i }))
-
-    await waitFor(() => expect(closed).toBe(true))
-    const service = new DefinitionsService(db)
-    const created = (await service.listExercises()).find(e => e.name === 'Triple')!
-    expect(created.quantifierRule.kind).toBe('allowed-values')
-    if (created.quantifierRule.kind !== 'allowed-values') throw new Error('expected allowed-values')
-    expect(created.quantifierRule.values.map(Number)).toEqual([3])
   })
 
   it('deselecting equipment after enabling combine hides the toggle and resets shouldCombineResistance', async () => {
