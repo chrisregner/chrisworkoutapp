@@ -127,26 +127,24 @@ Domain failures are typed (`InvariantViolationError`, `EntityNotFoundError`,
 etc.), not string-matched. UI can distinguish recoverable user errors from
 system errors without parsing messages.
 
-### Presentation state vs domain state
+### Presentation state lives outside domain types
 
-Before adding a field to a domain type, run two tests:
+Domain types model what a training program *is*. They do not model how the
+author chooses to look at it. Sort order, column ordering, collapsed sections —
+none of that belongs on `ProgressionDef`. Two devices opening the same
+progression can legitimately disagree on sort order; they cannot disagree on
+what was lifted.
 
-1. Does removing this field change what the training program *means*, or only
-   how the user *views* it?
-2. Would two devices opening the same progression need to agree on this value?
+View preferences are still persisted — localStorage would not survive a cache
+clear and would block any future sync. They live in a separate table (e.g.
+`progression_view_state`) with a FK to the owning domain row and CASCADE on
+delete. The repository exposes view state through its own read/write methods.
+A UI hook combines the domain object and the view state into a view-model;
+the domain object itself never knows about the preference.
 
-If either answer points to "meaning" or "must agree," it's domain state. If
-both point to "view only," it's presentation state and lives outside the
-domain object.
-
-Resolved cases:
-
-- **`plannedSets` / `plannedReps`** — domain. Defines the plan's structure,
-  evolves over time, and must be a superset of any cell holding `volumeSets`.
-- **`availablePieceIds` on `ExerciseDef`** — domain. A constraint on which
-  loads are valid, not a UI default for a picker.
-- **`sortOrder`** — presentation. Persisted outside the domain object via a
-  separate repository method.
+Concrete: `sortOrder` for the progression grid — an ordered list of
+`{column: 'resistance' | 'sets' | 'reps', direction: 'asc' | 'desc'}` —
+lives in `progression_view_state`, not on `ProgressionDef`.
 
 ## Patterns deliberately NOT used
 

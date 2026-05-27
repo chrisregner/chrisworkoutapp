@@ -1,3 +1,7 @@
+Non progression based tracking (e.g. pull up bar hold/jump rope time increasing over time)
+
+---
+
 - equipment definition
   - name (e.g. kettlebell)
   - isCombinable = false (e.g. can you use 1kg and 2kg plate to have 3kg)
