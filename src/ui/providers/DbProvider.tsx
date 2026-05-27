@@ -4,12 +4,13 @@ import { getDb, type Db } from '../../persistence/client'
 
 const DbContext = createContext<Db | null>(null)
 
-export function DbProvider({ children }: { children: ReactNode }) {
-  const [db, setDb] = useState<Db | null>(null)
+export function DbProvider({ children, db: injectedDb }: { children: ReactNode; db?: Db }) {
+  const [db, setDb] = useState<Db | null>(injectedDb ?? null)
   const [error, setError] = useState<Error | null>(null)
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
+    if (injectedDb) return
     let cancelled = false
     setError(null)
     getDb().then(
@@ -17,7 +18,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
       e => { if (!cancelled) setError(e instanceof Error ? e : new Error(String(e))) },
     )
     return () => { cancelled = true }
-  }, [attempt])
+  }, [attempt, injectedDb])
 
   if (error) {
     return (
