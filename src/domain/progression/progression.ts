@@ -16,6 +16,7 @@ export type VolumeSet = {
   readonly sets: PositiveInt
   readonly quantifierValue: PositiveInt
   readonly resistanceSource: readonly ResistanceSourceEntry[]
+  readonly restBetweenSets?: PositiveInt
 }
 
 export type ProgressionBody =
@@ -52,6 +53,7 @@ export type VolumeSetInput = {
   sets: number
   quantifierValue: number
   resistanceSource: { piece: { pieceId?: string; resistance: number; totalQuantity: number }; quantityUsed: number }[]
+  restBetweenSets?: number
 }
 
 export type ProgressionBodyInput =
@@ -124,7 +126,14 @@ function makeVolumeSet(input: VolumeSetInput, exercise: ExerciseDef, path: strin
     }
   })
 
-  return { sets, quantifierValue, resistanceSource }
+  const restBetweenSets = input.restBetweenSets !== undefined ? positiveInt(input.restBetweenSets) : undefined
+
+  return {
+    sets,
+    quantifierValue,
+    resistanceSource,
+    ...(restBetweenSets !== undefined ? { restBetweenSets } : {}),
+  }
 }
 
 /**
@@ -206,6 +215,14 @@ export function makeProgressionDef(input: ProgressionDefInput): ProgressionDef {
       volumeSets: input.body.volumeSets.map((pair, i) => {
         const heavy = makeVolumeSet(pair.heavy, input.exercise, `volumeSets[${i}].heavy`)
         const light = makeVolumeSet(pair.light, input.exercise, `volumeSets[${i}].light`)
+        // HL rest symmetry: restBetweenSets must be set on both heavy and light
+        // or neither — prevents "heavy has a timer, light silently doesn't".
+        if ((heavy.restBetweenSets !== undefined) !== (light.restBetweenSets !== undefined)) {
+          throw new InvariantViolationError(
+            `volumeSets[${i}]`,
+            'restBetweenSets must be set on both heavy and light or neither',
+          )
+        }
         if (totalResistance(heavy) <= totalResistance(light)) {
           throw new InvariantViolationError(
             `volumeSets[${i}]`,

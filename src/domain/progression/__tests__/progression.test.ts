@@ -400,6 +400,110 @@ describe('makeProgressionDef heavyLight cell reuse', () => {
   })
 })
 
+describe('makeProgressionDef heavyLight rest symmetry', () => {
+  const eq = buildEquipment()
+  const ex = buildExercise(eq)
+
+  // heavy: 5kg × 3 sets × 3 reps = vol 45; light: 2.5kg × 3 × 10 = vol 75 > 45 ✓
+  // heavy.resistance 5 > light.resistance 2.5 ✓
+  const heavyVs = (restBetweenSets?: number) => ({
+    sets: 3,
+    quantifierValue: 3,
+    resistanceSource: [{ piece: snap(eq, 2), quantityUsed: 1 }],
+    ...(restBetweenSets !== undefined ? { restBetweenSets } : {}),
+  })
+  const lightVs = (restBetweenSets?: number) => ({
+    sets: 3,
+    quantifierValue: 10,
+    resistanceSource: [{ piece: snap(eq, 1), quantityUsed: 1 }],
+    ...(restBetweenSets !== undefined ? { restBetweenSets } : {}),
+  })
+
+  const buildPair = (heavyRest?: number, lightRest?: number) =>
+    makeProgressionDef({
+      id: u(3),
+      name: 'HL',
+      exercise: ex,
+      body: {
+        kind: 'heavyLight',
+        volumeSets: [{ heavy: heavyVs(heavyRest), light: lightVs(lightRest) }],
+        plannedSets: [3],
+        plannedReps: [3, 10],
+      },
+    })
+
+  it('accepts when restBetweenSets is set on both heavy and light', () => {
+    const prog = buildPair(90, 120)
+    expect(prog.body.kind).toBe('heavyLight')
+  })
+
+  it('accepts when restBetweenSets is absent on both heavy and light', () => {
+    const prog = buildPair(undefined, undefined)
+    expect(prog.body.kind).toBe('heavyLight')
+  })
+
+  it('rejects when only heavy has restBetweenSets', () => {
+    expect(() => buildPair(90, undefined)).toThrow(/restBetweenSets must be set on both/)
+  })
+
+  it('rejects when only light has restBetweenSets', () => {
+    expect(() => buildPair(undefined, 90)).toThrow(/restBetweenSets must be set on both/)
+  })
+})
+
+describe('VolumeSet restBetweenSets', () => {
+  it('accepts restBetweenSets when provided', () => {
+    const ex = buildExercise(null)
+    const prog = makeProgressionDef({
+      id: u(3),
+      name: 'P',
+      exercise: ex,
+      body: {
+        kind: 'linear',
+        volumeSets: [{ sets: 3, quantifierValue: 5, resistanceSource: [], restBetweenSets: 90 }],
+        plannedSets: [3],
+        plannedReps: [5],
+      },
+    })
+    const vs = (prog.body as unknown as { kind: 'linear'; volumeSets: any[] }).volumeSets[0]
+    expect(vs.restBetweenSets).toBe(90)
+  })
+
+  it('omits restBetweenSets when not provided', () => {
+    const ex = buildExercise(null)
+    const prog = makeProgressionDef({
+      id: u(3),
+      name: 'P',
+      exercise: ex,
+      body: {
+        kind: 'linear',
+        volumeSets: [{ sets: 3, quantifierValue: 5, resistanceSource: [] }],
+        plannedSets: [3],
+        plannedReps: [5],
+      },
+    })
+    const vs = (prog.body as unknown as { kind: 'linear'; volumeSets: any[] }).volumeSets[0]
+    expect(vs.restBetweenSets).toBeUndefined()
+  })
+
+  it('rejects non-positive restBetweenSets', () => {
+    const ex = buildExercise(null)
+    expect(() =>
+      makeProgressionDef({
+        id: u(3),
+        name: 'P',
+        exercise: ex,
+        body: {
+          kind: 'linear',
+          volumeSets: [{ sets: 3, quantifierValue: 5, resistanceSource: [], restBetweenSets: 0 }],
+          plannedSets: [3],
+          plannedReps: [5],
+        },
+      }),
+    ).toThrow(InvariantViolationError)
+  })
+})
+
 describe('volumeOf / totalResistance helpers', () => {
   it('totalResistance sums piece.resistance * quantityUsed', () => {
     const eq = buildEquipment()
