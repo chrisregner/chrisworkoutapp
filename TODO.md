@@ -14,6 +14,8 @@
 
 ## Goal 2: Program Definition
 - Spec: [specs/program-definition.md](specs/program-definition.md) — 4 increments (domain → persistence → service → UI)
+- Model: **materialized** Program → Microcycle[] → Day[] → Activity[] (nested, no `swap` derivation).
+  Light counterpart authored concretely via invertDay/invertMicrocycle helpers.
 - timers:
   - warmup/cooldown/main timer group
   - exercises might want to be tracked individually, but warmup/cooldown might not be
@@ -36,5 +38,5 @@ Five app-layer services mapped to user jobs (not one-per-aggregate):
 
 NOT services (pure domain fns instead):
 - Equipment load resolution (discrete piece selection given target resistance + `shouldCombineResistance`) — called inside `WorkoutService`.
-- Rotation pointer advance — method on `Program` aggregate or pure fn.
+- Rotation cursor (`RotationPosition` = ID-based `{microcycleId, dayId}`, separate runtime aggregate, re-validated on read) — advance is a pure fn consumed by `WorkoutService`. NOT on `ProgramDef`.
 - Chart aggregation — derive in UI from `WorkoutLogService` reads.

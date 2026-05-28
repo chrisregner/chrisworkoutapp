@@ -1,40 +1,107 @@
 # Spec: Program Definition (Goal 2)
 
 Authoring-only feature. A `Program` is a reusable, rolling-rotation sequence of
-days. Workout execution / logging / rotation pointer state lives elsewhere
-(Goal 3). This spec covers domain → persistence → service → UI.
+**microcycles**, each a sequence of **days**, each a sequence of **activities**.
+Workout execution / logging / rotation cursor state lives elsewhere (Goal 3).
+This spec covers domain → persistence → service → UI.
+
+## The pivot (why this differs from the first draft)
+
+The original design **derived** the heavy/light second pass: store days once, set
+a `swap` flag at rotation time, flip every HL slot's `hlPick` on the second pass.
+We dropped that. Two reasons surfaced in design discussion:
+
+1. **Rest is relational, per heavy/light.** Rest between exercises depends on what
+   came before AND after — it belongs to a *position in a concrete day*, not to a
+   slot, and not to a day-global "pass." And a "pass" isn't uniformly heavy/light
+   anyway: `hlPick` is per-slot, so one day can mix a heavy slot and a light slot.
+   There is no day-global heavy/light state to key rest off of.
+2. **Materialize, don't derive.** Make every day a concrete authored template.
+   The light counterpart is a *real* day, seeded by an invert helper, then freely
+   editable (rest included). The whole rest-variance problem **dissolves** — you
+   just author a different number in the concrete day. No `HLValue` union, no
+   tuple, no resolver, no `swap`.
+
+What we give up: the mechanical guarantee that every heavy day has a structurally
+identical light twin. For a single-user tool where per-side customization is the
+*point*, that guarantee was a constraint, not a feature. The **HL correctness
+invariant** (heavy resistance > light, light volume > heavy) is unaffected — it
+lives in `makeProgressionDef`, across the `{heavy, light}` pair, untouched.
+
+## Structure (G3 — nested, not flat)
+
+```
+ProgramDef
+  └─ Microcycle[]        (≥1; a linear program is ONE unlabeled microcycle)
+       └─ ProgramDay[]   (≥1)
+            └─ Activity[] (≥1 ExerciseSlot)
+```
+
+Why nested and not a flat `days[]` + a `microcycleIndex` tag: blocks/microcycles
+**do not interleave in reality**. Encoding them as a flat list whose ordering
+carries meaning would require a runtime "contiguity" invariant to forbid
+interleaving — a validate-later smell. Nesting makes interleaving
+*unrepresentable*. The hierarchy is real in the domain, so it is real in the type.
+Bonus: rotation position becomes intrinsically `(microcycleIndex, dayIndex)` —
+the "Microcycle 2 · Day 3" navigation falls out of the structure for free (Goal 3
+consumes it).
+
+## Naming (periodization nomenclature — selective)
+
+Ubiquitous language = the author's words + terms that earn their place by killing a
+real ambiguity. Periodization vocabulary applies to the **time/structure axis
+only** (program → microcycle → day); the **load/movement axis** (exercise, set,
+rep, resistance, progression, equipment) keeps its own correct vocabulary.
+
+| Concept | Name | Rationale |
+| --- | --- | --- |
+| Day grouping | **`Microcycle`** | Adopted. Killed the banned "week" — the sports-science term for "smallest repeating training unit, *not* calendar-bound." |
+| Top container | **`Program` / `ProgramDef`** | Kept. Lifters say "what program are you running?" — stronger ubiquitous language than "mesocycle". |
+| Rotation unit | **`ProgramDay` / `Day`** | Kept. Matches home screen ("Next workout: Day 4"). Means rotation slot, not a date. |
+| Sub-session | `Activity` / `ExerciseSlot` / `RestPeriod` | Kept. No periodization term exists below "session". |
+| Load axis | `ProgressionDef`, `VolumeSet`, `ExerciseDef`, `EquipmentDef` | Kept. Wrong axis for periodization terms. |
 
 ## Decisions captured
 
 | Topic | Decision |
 | --- | --- |
-| Rest between sets | Lives on `ProgressionDef` (per `VolumeSet`). Slot may carry a fallback when no progression is chosen. |
-| Sets count | Owned by `ProgressionDef` (already on `VolumeSet`). Slot may carry a fallback when no progression is chosen. |
-| Heavy/Light swap pass | Auto-derived. If ANY slot in the program uses an HL progression, the rolling rotation visits days twice: pass 1 as authored, pass 2 with each HL slot's `hlPick` flipped. Stored once. |
-| HL pick on slot | Required when slot's progression is HL. Smart constructor rejects missing. |
-| Day shape | Ordered mixed activity list: each activity is either an `ExerciseSlot` or a `RestPeriod`. |
-| Day naming | Auto index + optional label. Display: `Day 1` or `Day 1 — leg`. |
-| Exercise reuse | Same `ExerciseDef` may appear N times in a day (no restriction). |
-| Progression scope | `ProgressionDef` referenced by a slot must belong to that slot's `ExerciseDef` (enforced in smart constructor). |
-| No-progression slot | Allowed. Must declare `sets` + `quantifierValue` + optional `restBetweenSets`. Resistance is freestyle at workout time. |
+| HL second pass | **Materialized, not derived.** No `swap`. The light counterpart is a concrete authored day/microcycle, seeded by an invert helper, freely editable. |
+| Microcycle | `{ id, label?, days }`. Mandatory `≥1`. Linear program = one unlabeled microcycle. `label` user-facing ("Heavy"/"Light"/"Deload"); absent → UI shows "Microcycle N". |
+| Rest between exercises | Plain positional `RestPeriod` activity. HL variance achieved by authoring concrete days — no union/tuple. |
+| Rest between sets | On `ProgressionDef` per `VolumeSet` (already exists). HL variants: **symmetric-or-neither** — `restBetweenSets` set on both `heavy` and `light` or neither (enforced in `makeProgressionDef`). Slot fallback may carry its own. |
+| Sets count | Owned by `ProgressionDef` (on `VolumeSet`). Slot fallback when no progression. |
+| HL pick on slot | Required when slot's progression is HL. Smart constructor rejects missing. Per-slot — **mixed-side days allowed** (slot 1 heavy + slot 2 light in one day is the point). |
+| Day shape | Ordered mixed activity list: each is an `ExerciseSlot` or a `RestPeriod`. |
+| Day naming | Auto index (1-based within its microcycle) + optional label. |
+| Exercise reuse | Same `ExerciseDef` may appear N times in a day. |
+| Progression scope | `ProgressionDef` on a slot must belong to that slot's `ExerciseDef` (smart constructor). |
+| No-progression slot | Allowed. Declares `sets` + `quantifierValue` + optional `restBetweenSets`. Resistance freestyle at workout time. |
 | Rest period | `durationSeconds` + optional `label`. |
-| Min sizes | `≥1` day, `≥1` exercise slot per day, no upper bound. |
-| Slot role | `slot.role: 'warmup' \| 'main' \| 'cooldown'`, optional, defaults to `'main'`. Per-use, not on `ExerciseDef` (a jump rope can be warmup in one slot, main in another). Goal 3 workout flow groups by role for timer-group mode. |
-| Out of scope | Rotation pointer state, starting/ending sessions, logging, increment/decrement of progression, workout-time decisions, **progression cursor** (current step within a `ProgressionDef.body.volumeSets[]`). The execution domain *will consume* a `Program` and own the cursor — see Goal 3. |
+| Invert helpers | `invertDay` (pure primitive — flips each HL slot's `hlPick`, copies rest for editing) and `invertMicrocycle` (composes `invertDay` over a microcycle's days). Pure domain functions; UI buttons wire them, result flows through `makeProgramDef`. |
+| Min sizes | `≥1` microcycle, `≥1` day per microcycle, `≥1` exercise slot per day. No upper bound. |
+| Slot role | `slot.role: 'warmup' \| 'main' \| 'cooldown'`, optional, default `'main'`. Per-use, not on `ExerciseDef`. Goal 3 groups by role for timer-group mode. |
+| Out of scope | **Rotation cursor** (`RotationPosition` — ID-based `{ microcycleId, dayId }`, re-validated on read, typed dangle error; separate aggregate + `WorkoutService`), starting/ending sessions, logging, progression increment/decrement, **progression cursor** (current step within `ProgressionDef.body.volumeSets[]`). The execution domain *consumes* a `Program` and owns these — Goal 3. |
 
 ## Open follow-ups (NOT this increment)
 
-- Editing a `Program` after creation: in-place vs snapshot-at-workout-start. Decide in Goal 3 when workout logging exists. For now, edits are in-place; no historical workouts to break yet.
-- Reordering UX (drag handle vs up/down) — designer choice during inc 4.
-- **ProgressionCursor** — current step index per `ProgressionDef`. Belongs to Goal 3 (workout flow / program state). One cursor per `ProgressionDef` (lifter's state with the movement is global, not program-bound). HL steps use single int (step = heavy+light pair).
-- **Timer-group mode** (warmup/cooldown grouped timer vs per-exercise timer) — Goal 3. Consumes `slot.role`.
+- Editing a `Program` after workouts exist: in-place vs snapshot-at-start. Goal 3.
+  For now edits are in-place; no historical workouts to break.
+- Reordering UX (drag vs up/down) — designer choice during inc 4.
+- **RotationPosition / cursor** — `{ microcycleId, dayId }`, ID-based (survives
+  edits; index-based would silently point at the wrong workout after an edit).
+  Stored as its own runtime aggregate, advanced by `WorkoutService`, re-validated
+  on read (`EntityNotFoundError` on dangle). Goal 3.
+- **ProgressionCursor** — current step index per `ProgressionDef`. Goal 3. One
+  cursor per `ProgressionDef` (lifter's state with the movement is global, not
+  program-bound). HL steps use a single int (step = heavy+light pair).
+- **Timer-group mode** (warmup/cooldown grouped vs per-exercise timer) — Goal 3.
+  Consumes `slot.role`.
 
 ---
 
 ## Domain shape (target)
 
 ```ts
-// New
 type RestPeriod = {
   readonly kind: 'rest'
   readonly durationSeconds: PositiveInt
@@ -45,9 +112,9 @@ type ExerciseSlot = {
   readonly kind: 'exercise'
   readonly exercise: ExerciseDef
   readonly role: 'warmup' | 'main' | 'cooldown'   // defaults to 'main' if input omits it
-  readonly progression?: ProgressionDef       // optional
-  readonly hlPick?: 'heavy' | 'light'         // required iff progression.body.kind === 'heavyLight'
-  readonly fallback?: {                       // present iff progression is absent
+  readonly progression?: ProgressionDef            // optional
+  readonly hlPick?: 'heavy' | 'light'              // required iff progression.body.kind === 'heavyLight'
+  readonly fallback?: {                            // present iff progression is absent
     readonly sets: PositiveInt
     readonly quantifierValue: PositiveInt
     readonly restBetweenSets?: PositiveInt
@@ -58,95 +125,104 @@ type Activity = RestPeriod | ExerciseSlot
 
 type ProgramDay = {
   readonly id: Uuid
-  readonly index: PositiveInt          // 1-based, contiguous, unique within Program
-  readonly label?: string              // optional
-  readonly activities: readonly Activity[]   // ≥1 ExerciseSlot required
+  readonly index: PositiveInt                  // 1-based, contiguous & unique WITHIN its microcycle
+  readonly label?: string
+  readonly activities: readonly Activity[]     // ≥1 ExerciseSlot required
+}
+
+type Microcycle = {
+  readonly id: Uuid
+  readonly index: PositiveInt                  // 1-based, contiguous & unique within Program
+  readonly label?: string                      // optional ("Heavy" / "Light" / "Deload")
+  readonly days: readonly ProgramDay[]         // ≥1
 }
 
 type ProgramDef = {
   readonly id: Uuid
   readonly name: string
-  readonly days: readonly ProgramDay[]       // ≥1
+  readonly microcycles: readonly Microcycle[]  // ≥1
 }
 ```
 
 Derived (NOT stored):
 
 ```ts
-function hasHeavyLight(p: ProgramDef): boolean   // true if any slot.progression?.body.kind === 'heavyLight'
-function rotationLength(p: ProgramDef): number   // hasHeavyLight ? days.length * 2 : days.length
-function dayAtRotationIndex(p: ProgramDef, i: number): { day: ProgramDay; swap: boolean }
+function hasHeavyLight(p: ProgramDef): boolean   // any slot.progression?.body.kind === 'heavyLight' — UI badge only
 ```
 
-`dayAtRotationIndex` returns the day to perform AND a `swap` flag. The
-workout-flow layer (Goal 3) uses `swap` to flip every HL slot's `hlPick` at
-execution time. ProgramDef itself is not duplicated in storage.
+> `rotationLength` / `dayAtRotationIndex` / `swap` are **gone**. Rotation walking
+> and the `(microcycle, day)` cursor belong to Goal 3 (`WorkoutService` +
+> `RotationPosition`). The definition aggregate does not know about position.
+
+Invert helpers (pure domain):
+
+```ts
+function invertDay(day: ProgramDayInput): ProgramDayInput          // flip each HL slot's hlPick; copy rest
+function invertMicrocycle(mc: MicrocycleInput): MicrocycleInput    // { ...mc, days: mc.days.map(invertDay) }
+```
 
 ### Invariants enforced by `makeProgramDef`
 
 1. `name` non-empty.
-2. `days.length ≥ 1`.
-3. Day indices: 1-based, contiguous (1, 2, 3, …), unique.
-4. For each day: at least one `Activity.kind === 'exercise'`.
-5. For each `ExerciseSlot`:
+2. `microcycles.length ≥ 1`.
+3. Microcycle indices: 1-based, contiguous, unique within the program.
+4. Each microcycle: `days.length ≥ 1`; day indices 1-based, contiguous, unique within that microcycle.
+5. Each day: at least one `Activity.kind === 'exercise'`.
+6. Each `ExerciseSlot`:
    a. Exactly one of `progression` or `fallback` is set.
    b. If `progression` set:
       - `progression.exercise.id === slot.exercise.id` (scope rule).
-      - If `progression.body.kind === 'heavyLight'`, `hlPick` is required.
-      - Otherwise `hlPick` must be absent.
+      - If `progression.body.kind === 'heavyLight'`, `hlPick` is required; otherwise absent.
    c. If `fallback` set: `hlPick` must be absent.
-6. `RestPeriod.durationSeconds > 0`.
-7. `ExerciseSlot.role` defaults to `'main'` when omitted from input; otherwise must be one of `'warmup' | 'main' | 'cooldown'`.
+7. `RestPeriod.durationSeconds > 0`.
+8. `ExerciseSlot.role` defaults to `'main'` when omitted; otherwise one of `'warmup' | 'main' | 'cooldown'`.
+
+> Interleaving of microcycles is **unrepresentable** by construction (nesting), so
+> no contiguity invariant is needed for it.
 
 ### Adjustment to `progression.ts`
 
-Add `restBetweenSets?: PositiveInt` field on `VolumeSet`. Optional to avoid a
-breaking migration for existing progressions. New constructor accepts it,
-existing volume sets continue to validate without it.
+`VolumeSet.restBetweenSets?: PositiveInt` already exists. Add one invariant in the
+HL pair loop of `makeProgressionDef`:
 
-```ts
-type VolumeSet = {
-  readonly sets: PositiveInt
-  readonly quantifierValue: PositiveInt
-  readonly resistanceSource: readonly ResistanceSourceEntry[]
-  readonly restBetweenSets?: PositiveInt   // NEW
-}
-```
+- **HL rest symmetry:** `heavy.restBetweenSets` and `light.restBetweenSets` are
+  both present or both absent. Reject the asymmetric case (prevents "heavy has a
+  timer, light silently doesn't").
 
-No invariant change beyond the existing HL volume/resistance rules.
+No other invariant change.
 
 ---
 
 ## Increment plan
 
-Four PRs, each independently mergeable and tested. Stop after any increment
-without breaking what was built before.
+Four PRs, each independently mergeable and tested.
 
 ### Increment 1 — Domain
 
 **Files**
 
-- `src/domain/program/program.ts` (new)
-- `src/domain/program/index.ts` (new)
-- `src/domain/program/__tests__/program.test.ts` (new)
-- `src/domain/progression/progression.ts` (add `restBetweenSets` to `VolumeSet` + input)
-- `src/domain/progression/__tests__/progression.test.ts` (cover new field)
+- `src/domain/program/program.ts`
+- `src/domain/program/index.ts`
+- `src/domain/program/__tests__/program.test.ts`
+- `src/domain/progression/progression.ts` (add HL rest-symmetry invariant)
+- `src/domain/progression/__tests__/progression.test.ts` (cover symmetry)
 - `src/domain/index.ts` (re-export program)
 
 **Build**
 
-1. Types per "Domain shape" above. Branded primitives reused (`PositiveInt`, `Uuid`).
-2. `makeRestPeriod`, `makeExerciseSlot`, `makeProgramDay`, `makeProgramDef` smart constructors.
-3. Typed errors via existing `InvariantViolationError`.
-4. Derived helpers: `hasHeavyLight`, `rotationLength`, `dayAtRotationIndex`.
-5. `restBetweenSets` added to `VolumeSet` + `VolumeSetInput`; threaded through `makeVolumeSet`.
+1. Types per "Domain shape". Branded primitives reused (`PositiveInt`, `Uuid`).
+2. `makeRestPeriod`, `makeExerciseSlot`, `makeProgramDay`, `makeMicrocycle`, `makeProgramDef`.
+3. Typed errors via `InvariantViolationError`.
+4. `invertDay`, `invertMicrocycle` pure helpers.
+5. `hasHeavyLight` derived helper (UI badge).
+6. HL rest-symmetry invariant added to `makeProgressionDef`.
 
 **Tests**
 
-- Example tests for each invariant (1–6 above) — assert each rejects with the expected error path.
-- fast-check property tests:
-  - For any valid `ProgramDef`, `dayAtRotationIndex(p, i)` for `i ∈ [0, rotationLength(p))` returns a day with `swap === (hasHeavyLight && i >= days.length)`.
-  - For any valid `ProgramDef`, day indices form `1..N` exactly once.
+- Example tests for each invariant (1–8) — assert each rejects with the expected error path.
+- HL rest symmetry: asymmetric `restBetweenSets` rejected; both-set and both-absent accepted.
+- `invertDay` flips `hlPick` on HL slots, leaves non-HL slots and rest untouched, is involutive (`invertDay(invertDay(d))` deep-equals `d`).
+- fast-check: for any valid `ProgramDef`, microcycle indices form `1..M` exactly once; within each, day indices form `1..N` exactly once.
 - Round-trip: `makeProgramDef(programDefToInput(p))` deep-equals `p`.
 - `hasHeavyLight` true iff at least one slot's progression is HL.
 
@@ -154,7 +230,6 @@ without breaking what was built before.
 
 - `pnpm test src/domain/program` green.
 - No imports from `persistence/`, `app/`, `ui/`, React, Drizzle.
-- TypeScript: `make*` functions return branded `Readonly` shapes; inputs are plain.
 
 ---
 
@@ -162,12 +237,11 @@ without breaking what was built before.
 
 **Files**
 
-- `src/persistence/schema.ts` (add tables)
-- `src/persistence/migrations/000X_program.sql` (new, version-gated)
-- `src/persistence/rows.ts` (new row types via Drizzle inference)
-- `src/persistence/repositories/program.repo.ts` (new)
-- `src/persistence/repositories/__tests__/program.repo.test.ts` (new)
-- `src/persistence/migrations/000X_progression_rest.sql` (NEW migration adding `rest_between_sets` to volume_set jsonb is unneeded — field is inside jsonb. Just re-validate.)
+- `src/persistence/schema.ts`
+- `src/persistence/migrations/000X_program.sql` (version-gated)
+- `src/persistence/rows.ts`
+- `src/persistence/repositories/program.repo.ts`
+- `src/persistence/repositories/__tests__/program.repo.test.ts`
 
 **Schema**
 
@@ -179,12 +253,20 @@ CREATE TABLE program_def (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE program_microcycle (
+  id              UUID PRIMARY KEY,
+  program_id      UUID NOT NULL REFERENCES program_def(id) ON DELETE CASCADE,
+  cycle_index     INTEGER NOT NULL,
+  label           TEXT,
+  UNIQUE (program_id, cycle_index)
+);
+
 CREATE TABLE program_day (
-  id            UUID PRIMARY KEY,
-  program_id    UUID NOT NULL REFERENCES program_def(id) ON DELETE CASCADE,
-  day_index     INTEGER NOT NULL,
-  label         TEXT,
-  UNIQUE (program_id, day_index)
+  id              UUID PRIMARY KEY,
+  microcycle_id   UUID NOT NULL REFERENCES program_microcycle(id) ON DELETE CASCADE,
+  day_index       INTEGER NOT NULL,
+  label           TEXT,
+  UNIQUE (microcycle_id, day_index)
 );
 
 CREATE TABLE program_activity (
@@ -200,12 +282,11 @@ CREATE TABLE program_activity (
 `body` shape (jsonb):
 
 - kind=`rest`: `{ durationSeconds, label? }`
-- kind=`exercise`: `{ exerciseId, role?, progressionId? | fallback?, hlPick? }` (`role` omitted = `'main'`)
+- kind=`exercise`: `{ exerciseId, role?, progressionId? | fallback?, hlPick? }`
 
-`exerciseId` and `progressionId` reference catalog rows; **no FK constraint**
-on jsonb keys, but the repo joins/loads them on read and the smart
-constructor enforces the scope rule (matches existing project pattern of
-historical snapshots for `VolumeSet`).
+`exerciseId` / `progressionId` reference catalog rows; **no FK on jsonb keys** —
+the repo loads them on read and the smart constructor enforces scope (matches the
+`VolumeSet` historical-snapshot pattern).
 
 **Repo API**
 
@@ -218,18 +299,18 @@ deleteProgramDef(id: Uuid): Promise<void>
 
 **Read path**
 
-1. Load rows.
-2. Resolve referenced `ExerciseDef` and `ProgressionDef` via existing repos.
+1. Load rows (program → microcycles → days → activities).
+2. Resolve referenced `ExerciseDef` / `ProgressionDef` via existing repos.
 3. Zod-validate jsonb shape per activity row.
 4. Map → `ProgramDefInput` → `makeProgramDef` (re-runs invariants).
 
-**Tests** (integration, real PGLite via `makeTestDb`)
+**Tests** (real PGLite via `makeTestDb`)
 
-- Round-trip: save → load → deep-equal original (after smart-constructor canonicalization).
-- Re-validation on read: corrupt a `body` jsonb manually, expect `getProgramDef` to throw `InvariantViolationError`.
-- Cascade delete: delete a program → days + activities gone.
-- Reordering: saving with new `position`/`day_index` reflected on next read.
-- Referencing a deleted `ExerciseDef` or `ProgressionDef`: read fails (resolve step returns null). Decide policy: throw `EntityNotFoundError`. Author cannot save a program with missing refs in the first place because slot construction requires the live objects.
+- Round-trip save → load → deep-equal.
+- Re-validation: corrupt a `body` jsonb manually → `getProgramDef` throws `InvariantViolationError`.
+- Cascade delete: delete program → microcycles + days + activities gone.
+- Reordering: new `cycle_index` / `day_index` / `position` reflected on next read.
+- Missing ref (deleted `ExerciseDef`/`ProgressionDef`): read throws `EntityNotFoundError`.
 
 ---
 
@@ -237,9 +318,9 @@ deleteProgramDef(id: Uuid): Promise<void>
 
 **Files**
 
-- `src/app/program-authoring.service.ts` (new)
-- `src/app/__tests__/program-authoring.service.test.ts` (new)
-- `src/app/index.ts` (export)
+- `src/app/program-authoring.service.ts`
+- `src/app/__tests__/program-authoring.service.test.ts`
+- `src/app/index.ts`
 
 **Service**
 
@@ -255,17 +336,17 @@ class ProgramAuthoringService {
 
 **Responsibilities**
 
-- Resolve catalog refs (look up `ExerciseDef` / `ProgressionDef` by id from caller-supplied input).
-- Run `makeProgramDef` (raises typed errors on invariant violations).
-- Wrap save in one transaction (replaces days/activities).
-- No rotation logic — that's `WorkoutService` (Goal 3).
+- Resolve catalog refs by id from caller input.
+- Run `makeProgramDef` (typed errors on violation).
+- One transaction per save (replace microcycles/days/activities atomically).
+- **No rotation logic** — that's `WorkoutService` (Goal 3).
 
 **Tests**
 
 - End-to-end against real DB: create → list → get → update → delete.
-- Surface typed errors: passing an HL-progression slot without `hlPick` raises `InvariantViolationError` with the expected path.
-- Referencing an unknown exercise/progression id raises `EntityNotFoundError`.
-- Update of a program: old days/activities are replaced atomically.
+- HL slot without `hlPick` → `InvariantViolationError` (expected path).
+- Unknown exercise/progression id → `EntityNotFoundError`.
+- Update replaces children atomically.
 
 ---
 
@@ -275,39 +356,39 @@ class ProgramAuthoringService {
 
 - `src/ui/features/program/ProgramListPage.tsx`
 - `src/ui/features/program/ProgramEditPage.tsx`
+- `src/ui/features/program/components/MicrocycleEditor.tsx`
 - `src/ui/features/program/components/DayEditor.tsx`
-- `src/ui/features/program/components/ActivityEditor.tsx` (renders rest vs exercise slot variants)
+- `src/ui/features/program/components/ActivityEditor.tsx`
 - `src/ui/features/program/hooks/usePrograms.ts` (TanStack Query)
 - nav entry + route
 
 **Behavior**
 
-- List page: name + day count + `hasHeavyLight` badge + edit/delete.
+- List page: name + microcycle/day counts + `hasHeavyLight` badge + edit/delete.
 - Edit page (mobile-first, Mantine):
   - Program name field.
-  - Day list with add/remove/reorder; each day shows auto `Day N` + optional label input.
-  - Inside a day: activity list, add rest/add exercise buttons, drag or up/down to reorder.
-  - Rest activity row: duration input + optional label.
-  - Exercise slot row:
-    - Picks `ExerciseDef` (combobox over catalog).
-    - Picks `ProgressionDef` constrained to that exercise; "None (freestyle)" allowed.
-    - If progression is HL: heavy/light radio.
-    - If no progression: sets + quantifierValue + optional restBetweenSets fields.
-    - Role select (warmup/main/cooldown), defaults to main.
-- Save calls service; query keys invalidated on success; typed errors surfaced inline (HL pick missing → field-level error).
-- Empty-day banner if day has zero exercise slots.
-- HL preview: when `hasHeavyLight` becomes true, a small note appears: "Rolling rotation will replay days with heavy/light flipped."
+  - Microcycle list: add/remove/reorder; each shows auto `Microcycle N` + optional label.
+    - **"Invert microcycle"** button → appends `invertMicrocycle` of the selected one (then freely editable).
+  - Day list within a microcycle: add/remove/reorder; auto `Day N` + optional label.
+    - **"Invert day"** button → seeds a day from `invertDay` of a chosen source day.
+  - Inside a day: activity list, add rest/add exercise, drag or up/down to reorder.
+  - Rest row: duration + optional label.
+  - Exercise slot row: pick `ExerciseDef`; pick `ProgressionDef` constrained to it ("None (freestyle)" allowed); if HL → heavy/light radio; if no progression → sets + quantifierValue + optional restBetweenSets; role select (default main).
+- Save calls service; query keys invalidated; typed errors surfaced inline (HL pick missing → field error).
+- Empty-day banner if a day has zero exercise slots.
 
 **Tests**
 
-- Component smoke tests for HL pick required state.
-- Manual run via `/run` skill — golden path: create program with mixed activities + HL exercise, save, reopen, fields match.
+- Component tests: HL-pick-required state; invert-day/invert-microcycle seed produces flipped picks.
+- Manual run via `/run` — golden path: build program with two microcycles (one inverted), HL exercise, save, reopen, fields match.
 
 ---
 
 ## Cross-cutting
 
-- **Naming.** New aggregate is `ProgramDef` to mirror `ExerciseDef` / `EquipmentDef` / `ProgressionDef`.
-- **README update.** After inc 4, add a "Program authoring" section under the architecture overview noting the auto-derived HL second pass.
-- **Migration ordering.** New migration uses the next available numeric prefix; `schema_version` runner is already idempotent.
-- **Skips noted.** Edit-after-workouts-exist semantics deferred to Goal 3. TODO comment in `program-authoring.service.ts` records the debt.
+- **Naming.** See "Naming" table. New aggregate `ProgramDef`; new level `Microcycle`.
+- **README update.** After inc 4, add a "Program authoring" section noting the
+  materialized (not derived) microcycle model and the invert helpers.
+- **Migration ordering.** Next available numeric prefix; `schema_version` runner is idempotent.
+- **Skips noted.** Edit-after-workouts-exist semantics deferred to Goal 3 — TODO
+  comment in `program-authoring.service.ts`.

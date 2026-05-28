@@ -1,6 +1,15 @@
 Non progression based tracking (e.g. pull up bar hold/jump rope time increasing over time)
 Disallow/handle on UI/logic when selecting a progression grid more than twice (once for heavy, once for light)
 
+--- PIVOT (Goal 2 program def) ---
+- Materialized microcycle model, NOT swap-derived. Program → Microcycle[] → Day[] → Activity[] (nested G3).
+- Microcycle = periodization term replacing "week" (calendar-banned). Kept "Program"/"Day".
+- Rest between exercises = positional RestPeriod; HL variance via concrete authored days.
+- Rest between sets = VolumeSet.restBetweenSets; HL heavy/light symmetric-or-neither.
+- invertDay/invertMicrocycle pure domain helpers (UI seeds, then editable).
+- Rotation cursor (RotationPosition {microcycleId,dayId}, ID-based) + logging = Goal 3, separate services.
+- Full spec: specs/program-definition.md
+
 ---
 
 - equipment definition
@@ -39,6 +48,10 @@ Disallow/handle on UI/logic when selecting a progression grid more than twice (o
         - rest between sets
         - sets count
     - somehow we need to be able to create programs that alternate heavy light non-swapped and swapped days
+      - RESOLVED: materialize, don't derive. Program → Microcycle[] → Day[] → Activity[].
+        Light counterpart = concrete authored microcycle/day seeded by invertDay/invertMicrocycle,
+        then freely editable. No `swap` flag. Rest variance dissolves (just author the number).
+        See specs/program-definition.md "The pivot".
 
 - log (not sure how to structure)
     - date
