@@ -8,6 +8,15 @@ import type {
   NewProgressionDefRow,
   ProgressionBodyPersisted,
   ProgressionDefRow,
+  NewProgramDefRow,
+  NewProgramMicrocycleRow,
+  NewProgramDayRow,
+  NewProgramActivityRow,
+  ProgramActivityBodyPersisted,
+  ProgramDefRow,
+  ProgramMicrocycleRow,
+  ProgramDayRow,
+  ProgramActivityRow,
 } from '../schema'
 import {
   type EquipmentDef,
@@ -15,9 +24,13 @@ import {
   type ProgressionDef,
   type ProgressionBodyInput,
   type VolumeSet,
+  type ProgramDef,
+  type ProgramDefInput,
+  type ActivityInput,
   makeEquipmentDef,
   makeExerciseDef,
   makeProgressionDef,
+  makeProgramDef,
 } from '../../domain'
 import { unbrandNumber, unbrandUuid } from '../branding'
 import { progressionBodySchema } from './validators'
@@ -143,4 +156,150 @@ export function progressionDefToRow(def: ProgressionDef): NewProgressionDefRow {
     bodyKind: def.body.kind,
     body,
   }
+}
+
+// ---------- ProgramDef mappers ----------
+
+export type ProgramRows = {
+  program: NewProgramDefRow
+  microcycles: NewProgramMicrocycleRow[]
+  days: NewProgramDayRow[]
+  activities: NewProgramActivityRow[]
+}
+
+export function programDefToRows(def: ProgramDef): ProgramRows {
+  const program: NewProgramDefRow = {
+    id: unbrandUuid(def.id),
+    name: def.name,
+  }
+  const microcycles: NewProgramMicrocycleRow[] = []
+  const days: NewProgramDayRow[] = []
+  const activities: NewProgramActivityRow[] = []
+
+  for (const mc of def.microcycles) {
+    microcycles.push({
+      id: unbrandUuid(mc.id),
+      programId: unbrandUuid(def.id),
+      cycleIndex: unbrandNumber(mc.index) - 1,
+      label: mc.label ?? null,
+    })
+    for (const day of mc.days) {
+      days.push({
+        id: unbrandUuid(day.id),
+        microcycleId: unbrandUuid(mc.id),
+        dayIndex: unbrandNumber(day.index) - 1,
+        label: day.label ?? null,
+      })
+      for (let i = 0; i < day.activities.length; i++) {
+        const act = day.activities[i]!
+        let body: ProgramActivityBodyPersisted
+        if (act.kind === 'rest') {
+          body = {
+            kind: 'rest',
+            durationSeconds: unbrandNumber(act.durationSeconds),
+            ...(act.label !== undefined ? { label: act.label } : {}),
+          }
+        } else {
+          body = {
+            kind: 'exercise',
+            exerciseId: unbrandUuid(act.exercise.id),
+            role: act.role,
+            ...(act.progression !== undefined ? { progressionId: unbrandUuid(act.progression.id) } : {}),
+            ...(act.hlPick !== undefined ? { hlPick: act.hlPick } : {}),
+            ...(act.fallback !== undefined
+              ? {
+                  fallback: {
+                    sets: unbrandNumber(act.fallback.sets),
+                    quantifierValue: unbrandNumber(act.fallback.quantifierValue),
+                    ...(act.fallback.restBetweenSets !== undefined
+                      ? { restBetweenSets: unbrandNumber(act.fallback.restBetweenSets) }
+                      : {}),
+                  },
+                }
+              : {}),
+          }
+        }
+        activities.push({
+          dayId: unbrandUuid(day.id),
+          position: i,
+          kind: act.kind,
+          body,
+        })
+      }
+    }
+  }
+
+  return { program, microcycles, days, activities }
+}
+
+export type ResolvedRefs = {
+  exercises: Map<string, ExerciseDef>
+  progressions: Map<string, ProgressionDef>
+}
+
+export function rowsToProgramDef(
+  programRow: ProgramDefRow,
+  microcycleRows: ProgramMicrocycleRow[],
+  dayRows: ProgramDayRow[],
+  activityRows: ProgramActivityRow[],
+  refs: ResolvedRefs,
+): ProgramDef {
+  const daysByMicrocycle = new Map<string, ProgramDayRow[]>()
+  for (const day of dayRows) {
+    const list = daysByMicrocycle.get(day.microcycleId) ?? []
+    list.push(day)
+    daysByMicrocycle.set(day.microcycleId, list)
+  }
+
+  const activitiesByDay = new Map<string, ProgramActivityRow[]>()
+  for (const act of activityRows) {
+    const list = activitiesByDay.get(act.dayId) ?? []
+    list.push(act)
+    activitiesByDay.set(act.dayId, list)
+  }
+
+  const input: ProgramDefInput = {
+    id: programRow.id,
+    name: programRow.name,
+    microcycles: [...microcycleRows]
+      .sort((a, b) => a.cycleIndex - b.cycleIndex)
+      .map(mc => ({
+        id: mc.id,
+        label: mc.label ?? undefined,
+        days: [...(daysByMicrocycle.get(mc.id) ?? [])]
+          .sort((a, b) => a.dayIndex - b.dayIndex)
+          .map(day => ({
+            id: day.id,
+            label: day.label ?? undefined,
+            activities: [...(activitiesByDay.get(day.id) ?? [])]
+              .sort((a, b) => a.position - b.position)
+              .map((act): ActivityInput => {
+                if (act.body.kind === 'rest') {
+                  return {
+                    kind: 'rest',
+                    durationSeconds: act.body.durationSeconds,
+                    ...(act.body.label !== undefined ? { label: act.body.label } : {}),
+                  }
+                }
+                const exercise = refs.exercises.get(act.body.exerciseId)
+                if (!exercise) {
+                  throw new Error(`exercise ${act.body.exerciseId} not in refs`)
+                }
+                const progression = act.body.progressionId
+                  ? refs.progressions.get(act.body.progressionId)
+                  : undefined
+                return {
+                  kind: 'exercise',
+                  exercise,
+                  role: act.body.role,
+                  ...(progression !== undefined ? { progression } : {}),
+                  ...(act.body.hlPick !== undefined ? { hlPick: act.body.hlPick } : {}),
+                  ...(act.body.fallback !== undefined ? { fallback: act.body.fallback } : {}),
+                }
+              }),
+          })),
+      })),
+  }
+
+  return makeProgramDef(input)
 }

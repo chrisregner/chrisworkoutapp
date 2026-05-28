@@ -10,4 +10,13 @@ export type {
   ProgressionBodyPersisted,
   EquipmentPieceSnapshotPersisted,
   VolumeSetPersisted,
+  ProgramDefRow,
+  NewProgramDefRow,
+  ProgramMicrocycleRow,
+  NewProgramMicrocycleRow,
+  ProgramDayRow,
+  NewProgramDayRow,
+  ProgramActivityRow,
+  NewProgramActivityRow,
+  ProgramActivityBodyPersisted,
 } from './schema'

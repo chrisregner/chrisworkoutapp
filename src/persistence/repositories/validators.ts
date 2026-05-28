@@ -114,3 +114,55 @@ export const progressionViewStateRowSchema = z.object({
   progressionDefId: z.uuid(),
   sortOrder: sortOrderSchema,
 })
+
+// ---------- Program schemas ----------
+
+export const programActivityBodySchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('rest'),
+    durationSeconds: z.number(),
+    label: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal('exercise'),
+    exerciseId: z.uuid(),
+    role: z.enum(['warmup', 'main', 'cooldown']).optional(),
+    progressionId: z.uuid().optional(),
+    hlPick: z.enum(['heavy', 'light']).optional(),
+    fallback: z
+      .object({
+        sets: z.number(),
+        quantifierValue: z.number(),
+        restBetweenSets: z.number().optional(),
+      })
+      .optional(),
+  }),
+])
+
+export const programDefRowSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  createdAt: z.date(),
+})
+
+export const programMicrocycleRowSchema = z.object({
+  id: z.uuid(),
+  programId: z.uuid(),
+  cycleIndex: z.number(),
+  label: z.string().nullable(),
+})
+
+export const programDayRowSchema = z.object({
+  id: z.uuid(),
+  microcycleId: z.uuid(),
+  dayIndex: z.number(),
+  label: z.string().nullable(),
+})
+
+export const programActivityRowSchema = z.object({
+  id: z.uuid(),
+  dayId: z.uuid(),
+  position: z.number(),
+  kind: z.enum(['rest', 'exercise']),
+  body: programActivityBodySchema,
+})

@@ -9,6 +9,7 @@ import {
   timestamp,
   jsonb,
   check,
+  unique,
 } from 'drizzle-orm/pg-core'
 
 export const equipmentDefs = pgTable('equipment_defs', {
@@ -115,6 +116,74 @@ export const progressionViewState = pgTable('progression_view_state', {
   sortOrder: jsonb('sort_order').$type<SortOrderPersisted>().notNull(),
 })
 
+export type ProgramActivityBodyPersisted =
+  | {
+      kind: 'rest'
+      durationSeconds: number
+      label?: string
+    }
+  | {
+      kind: 'exercise'
+      exerciseId: string
+      role?: 'warmup' | 'main' | 'cooldown'
+      progressionId?: string
+      hlPick?: 'heavy' | 'light'
+      fallback?: {
+        sets: number
+        quantifierValue: number
+        restBetweenSets?: number
+      }
+    }
+
+export const programDefs = pgTable('program_def', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const programMicrocycles = pgTable(
+  'program_microcycle',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    programId: uuid('program_id')
+      .notNull()
+      .references(() => programDefs.id, { onDelete: 'cascade' }),
+    cycleIndex: integer('cycle_index').notNull(),
+    label: text('label'),
+  },
+  t => [unique('program_microcycle_program_id_cycle_index_unique').on(t.programId, t.cycleIndex)],
+)
+
+export const programDays = pgTable(
+  'program_day',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    microcycleId: uuid('microcycle_id')
+      .notNull()
+      .references(() => programMicrocycles.id, { onDelete: 'cascade' }),
+    dayIndex: integer('day_index').notNull(),
+    label: text('label'),
+  },
+  t => [unique('program_day_microcycle_id_day_index_unique').on(t.microcycleId, t.dayIndex)],
+)
+
+export const programActivities = pgTable(
+  'program_activity',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    dayId: uuid('day_id')
+      .notNull()
+      .references(() => programDays.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    kind: text('kind', { enum: ['rest', 'exercise'] }).notNull(),
+    body: jsonb('body').$type<ProgramActivityBodyPersisted>().notNull(),
+  },
+  t => [
+    unique('program_activity_day_id_position_unique').on(t.dayId, t.position),
+    check('program_activity_body_kind_chk', sql`${t.body}->>'kind' = ${t.kind}`),
+  ],
+)
+
 export type EquipmentDefRow = typeof equipmentDefs.$inferSelect
 export type NewEquipmentDefRow = typeof equipmentDefs.$inferInsert
 export type EquipmentPieceRow = typeof equipmentPieces.$inferSelect
@@ -125,3 +194,11 @@ export type ProgressionDefRow = typeof progressionDefs.$inferSelect
 export type NewProgressionDefRow = typeof progressionDefs.$inferInsert
 export type ProgressionViewStateRow = typeof progressionViewState.$inferSelect
 export type NewProgressionViewStateRow = typeof progressionViewState.$inferInsert
+export type ProgramDefRow = typeof programDefs.$inferSelect
+export type NewProgramDefRow = typeof programDefs.$inferInsert
+export type ProgramMicrocycleRow = typeof programMicrocycles.$inferSelect
+export type NewProgramMicrocycleRow = typeof programMicrocycles.$inferInsert
+export type ProgramDayRow = typeof programDays.$inferSelect
+export type NewProgramDayRow = typeof programDays.$inferInsert
+export type ProgramActivityRow = typeof programActivities.$inferSelect
+export type NewProgramActivityRow = typeof programActivities.$inferInsert
