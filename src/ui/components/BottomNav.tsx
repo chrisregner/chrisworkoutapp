@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
 import { Group, Stack, Text, UnstyledButton } from '@mantine/core'
-import { IconBarbell, IconDumbbell, IconHome } from '@tabler/icons-react'
+import { IconBarbell, IconDumbbell, IconHome, IconRoute } from '@tabler/icons-react'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Workout', icon: IconHome, exact: true },
+  { to: '/programs', label: 'Programs', icon: IconRoute, exact: false },
   { to: '/exercises', label: 'Exercises', icon: IconDumbbell, exact: false },
   { to: '/equipments', label: 'Equipment', icon: IconBarbell, exact: false },
 ]

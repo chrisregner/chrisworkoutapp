@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { useDb } from './DbProvider'
-import { DefinitionsService } from '../../app'
+import { DefinitionsService, ProgramAuthoringService } from '../../app'
 import {
   findSortOrder,
   saveSortOrder,
@@ -20,6 +20,7 @@ export type ProgressionViewStateRepo = {
 
 type AppServices = {
   definitions: DefinitionsService
+  programAuthoring: ProgramAuthoringService
   progressionViewState: ProgressionViewStateRepo
 }
 
@@ -30,6 +31,7 @@ export function AppServicesProvider({ children }: { children: ReactNode }) {
   const services = useMemo<AppServices>(
     () => ({
       definitions: new DefinitionsService(db),
+      programAuthoring: new ProgramAuthoringService(db),
       progressionViewState: {
         findSortOrder: id => findSortOrder(db, id),
         saveSortOrder: (id, order) => saveSortOrder(db, id, order),
@@ -44,6 +46,12 @@ export function useDefinitions(): DefinitionsService {
   const s = useContext(AppServicesContext)
   if (!s) throw new Error('useDefinitions outside AppServicesProvider')
   return s.definitions
+}
+
+export function useProgramAuthoring(): ProgramAuthoringService {
+  const s = useContext(AppServicesContext)
+  if (!s) throw new Error('useProgramAuthoring outside AppServicesProvider')
+  return s.programAuthoring
 }
 
 export function useProgressionViewState(): ProgressionViewStateRepo {
