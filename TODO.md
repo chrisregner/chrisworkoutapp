@@ -2,23 +2,24 @@
 
 
 ## Goal 1: Strength Training Progression Definition
-- Goal
-  - Users define equipments and exercises. Then we present UI that helps them define their progression.
-- Prerequisite models
-  - Exercise
-  - Equipment
-  - Progression
-- Progression Types
-  - Linear
-  - Heavy/Low
+- [x] Goal
+  - [x] Users define equipments and exercises. Then we present UI that helps them define their progression.
+- [x] Prerequisite models
+  - [x] Exercise
+  - [x] Equipment
+  - [x] Progression
+- [x] Progression Types
+  - [x] Linear
+  - [x] Heavy/Low
 
 ## Goal 2: Program Definition
-- Spec: [specs/program-definition.md](specs/program-definition.md) — 4 increments (domain → persistence → service → UI)
-- Model: **materialized** Program → Microcycle[] → Day[] → Activity[] (nested, no `swap` derivation).
+- [x] Spec: [specs/program-definition.md](specs/program-definition.md) — 4 increments (domain → persistence → service → UI)
+- [x] Model: **materialized** Program → Microcycle[] → Day[] → Activity[] (nested, no `swap` derivation).
   Light counterpart authored concretely via invertDay/invertMicrocycle helpers.
-- timers:
-  - warmup/cooldown/main timer group
-  - exercises might want to be tracked individually, but warmup/cooldown might not be
+- [ ] timers:
+  - [ ] warmup/cooldown/main timer group
+  - [ ] exercises might want to be tracked individually, but warmup/cooldown might not be
+- [ ] TEST/REFINE
 
 ## Goal 3: Exercise Flow
 
