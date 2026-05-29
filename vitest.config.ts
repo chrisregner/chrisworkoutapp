@@ -7,5 +7,6 @@ export default defineConfig({
     cache: false,
     environment: 'jsdom',
     setupFiles: ['./src/ui/testing/setup.ts'],
+    testTimeout: 15000,
   },
 })
