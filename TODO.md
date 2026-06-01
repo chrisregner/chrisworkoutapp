@@ -22,8 +22,17 @@
 - [ ] TEST/REFINE
 
 ## Goal 3: Exercise Flow
+- [ ] Rotation cursor
+- [ ] Workout sessions
+- [ ] Logging
+- [ ] Progression cursor advancement
+- [ ] Workout-time freestyle resistance selection
+- [ ] Edit-after-workout snapshot semantics
+- [ ] Timer-group workout execution
 
 ## Others
+- exercise categories and sorting
+- routines (multiple steps for warm ups)
 - tags
 - import/export
 
