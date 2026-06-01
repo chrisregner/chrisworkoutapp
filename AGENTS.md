@@ -208,6 +208,48 @@ These are skipped on purpose, not by accident:
   `makeTestDb`. UI tests render real screens through real services against a
   fresh PGLite per test — no mocked services, no shallow rendering.
 
+## Collaboration protocol
+
+How to interpret user messages and act on them:
+
+- **Discussion ≠ instruction.** Observations, questions ("how would you…?"),
+  and brainstorming are not commands to touch the codebase. Only act on
+  explicit imperatives: "implement", "fix", "add", "delete", "refactor".
+  When intent is ambiguous, ask — don't guess and execute.
+- **Clarification before code for behavior changes.** If a request introduces
+  new product behavior or business rules, ask clarifying questions first.
+  For purely technical choices (naming, file location), pick a sensible
+  default, state it explicitly, and proceed: "I'll put this in `X` unless
+  you prefer elsewhere."
+- **Wait for explicit git instructions.** Never stage, commit, or push unless
+  the user explicitly says so ("commit this", "stage these", "push"). A
+  completed implementation is not implicit permission to commit.
+- **Sibling sweep.** When a cross-cutting pattern changes — error handling
+  shape, query key structure, mapper convention, hook signature — update every
+  sibling that follows the same pattern in the same turn. Partial updates
+  leave the codebase inconsistent and break the pattern contract.
+- **Type safety is non-negotiable.** Never use `any` or `unknown` as an
+  escape hatch. Never use type casts (`as T`) to paper over a mismatch.
+  Use type guards, Zod parsing at trust boundaries, and explicit annotations.
+  If the types don't fit, fix the types — don't lie to the compiler.
+- **Retry discipline.** Maximum 3 attempts per failing command or test.
+  Before each retry, state exactly what failed and why. If the third attempt
+  fails, stop and report: "Tried 3×, cannot fix — what next?" If two attempts
+  fail, consult docs or project history before the third — never blindly
+  repeat a losing strategy.
+- **Pragmatism and good engineering, both.** Strive for solutions that are
+  practical *and* well-engineered. They're not opposites. When forced to
+  choose, pragmatism wins — but that's a tiebreaker, not a license to skip
+  craft. "It works" is the floor, not the ceiling.
+- **Explicit error and state handling.** Never swallow errors or silently
+  ignore edge cases like empty lists, loading states, or failed network
+  calls. Handle every member of a typed error union explicitly. Unhandled
+  states surface as confusing blank UIs, not crashes, so they hide longer.
+- **No duplicate auth/security logic.** This app has no user auth today, but
+  if ownership checks, permission gates, or token verification ever appear,
+  extract to a shared function on the first write — never copy-paste security
+  logic even once.
+
 ## What "done" looks like for a feature
 
 A feature is not done when the UI works. A feature is done when:
