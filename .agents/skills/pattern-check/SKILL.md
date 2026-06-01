@@ -1,9 +1,8 @@
 ---
 name: pattern-check
 description: >
-  Pause and ask the user before making an architectural or structural decision in chrisworkoutapp
-  when there is no clear precedent, when two defensible approaches exist, or when the code being
-  written would be inconsistent with established patterns. Use this skill whenever:
+  Pause and ask the user before an architectural or structural decision in chrisworkoutapp
+  when there is no clear precedent or two defensible approaches exist. Use this skill whenever:
   (1) a new concept doesn't clearly fit an existing layer/pattern,
   (2) layer placement is ambiguous (domain vs app vs persistence vs ui),
   (3) a new naming convention or structural pattern would be introduced,
